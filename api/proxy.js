@@ -8,7 +8,38 @@ export default async function handler(req, res) {
 
     const body = req.body;
 
-    // --- 1. ПОЛУЧЕНИЕ НОВОСТЕЙ ---
+    // --- 1. ПОЛУЧЕНИЕ ПОСЛЕДНЕЙ СДЕЛКИ (REALTIME PRICE) ---
+    if (body.action === 'getLastTrade') {
+        try {
+            // Запрос к API сделок MOEX (одна последняя)
+            const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/SiH6/trades.json?reverse=true&limit=1`;
+            const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            const text = await response.text();
+            
+            // Парсим XML/JSON ответ MOEX
+            // MOEX отдает JSON, но иногда с кривым заголовком, поэтому надежнее парсить текст
+            const data = JSON.parse(text);
+            const cols = data.trades.columns;
+            const row = data.trades.data[0];
+            
+            if (!row) throw new Error("No trades");
+
+            const idx = {
+                price: cols.indexOf('price'),
+                time: cols.indexOf('tradetime')
+            };
+
+            return res.status(200).json({ 
+                price: parseFloat(row[idx.price]), 
+                time: row[idx.time] 
+            });
+
+        } catch (error) {
+            return res.status(200).json({ price: null });
+        }
+    }
+
+    // --- 2. ПОЛУЧЕНИЕ НОВОСТЕЙ ---
     if (body.action === 'getNews') {
         try {
             const query = encodeURIComponent('курс доллара OR нефть OR ЦБ РФ');
@@ -25,11 +56,11 @@ export default async function handler(req, res) {
             }
             return res.status(200).json({ news: titles.join('\n') });
         } catch (error) {
-            return res.status(200).json({ news: "Ошибка загрузки новостей" });
+            return res.status(200).json({ news: "Ошибка загрузки" });
         }
     }
 
-    // --- 2. DEEPSEEK ---
+    // --- 3. DEEPSEEK ---
     if (body.model && body.messages) {
         try {
             const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -44,8 +75,8 @@ export default async function handler(req, res) {
         }
     }
 
-    // --- 3. MOEX DATA ---
-    const { username, password, from, till, interval = 60 } = body; // Добавили interval
+    // --- 4. MOEX DATA (CANDLES) ---
+    const { username, password, from, till, interval = 60 } = body;
     try {
         let cookieHeader = '';
         if (username && password) {
@@ -59,19 +90,15 @@ export default async function handler(req, res) {
             if (setCookie && setCookie.includes('MicexPassportCert')) cookieHeader = setCookie.split(';')[0];
         }
 
-        // Используем переданный interval (по умолчанию 60 минут)
         const moexUrl = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/SiH6/candles.json?from=${from}&till=${till}&interval=${interval}&iss.only=candles`;
-        
         const headers = {};
         if (cookieHeader) headers['Cookie'] = cookieHeader;
 
         const dataResponse = await fetch(moexUrl, { headers });
         const data = await dataResponse.json();
-        
         if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
              return res.status(200).json({ warning: "Нет данных" });
         }
-
         res.status(200).json(data);
     } catch (error) {
         res.status(500).json({ error: error.message });
