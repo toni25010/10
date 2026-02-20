@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Si-3.26 через аккаунт MOEX</title>
+    <!-- стили как в предыдущих версиях (можно скопировать) -->
+</head>
+<body>
+    <div class="container">
+        <h1>📈 Реальные данные Si-3.26 (MOEX, через аккаунт) + DeepSeek</h1>
+
+        <div class="api-section" style="flex-direction: column;">
+            <div class="input-row">
+                <input type="text" id="moexUsername" class="api-input" placeholder="Логин ЛКУ MOEX" value="">
+                <input type="password" id="moexPassword" class="api-input" placeholder="Пароль ЛКУ MOEX" value="">
+            </div>
+            <div class="input-row">
+                <input type="date" id="fromDate" class="api-input" value="2026-02-15">
+                <input type="date" id="tillDate" class="api-input" value="2026-02-22">
+                <button id="loadDataBtn">📥 Загрузить данные с MOEX</button>
+            </div>
+            <div class="input-row">
+                <input type="password" id="deepseekApiKey" class="api-input" placeholder="DeepSeek API ключ" value="">
+                <button id="analyzeBtn" disabled>🔍 Анализировать</button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="watermark">Si-3.26 (MOEX реальные)</div>
+            <div id="chart"></div>
+            <div id="dataStatus" class="error-message" style="display: none;"></div>
+        </div>
+
+        <div class="indicators-panel" id="indicatorsPanel">...</div>
+        <div class="analysis-result">...</div>
+    </div>
+
+    <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
+    <script>
+        // Функции индикаторов (SMA, RSI, MACD) — без изменений
+        // ...
+
+        // Загрузка данных с прокси
+        document.getElementById('loadDataBtn').addEventListener('click', async () => {
+            const username = document.getElementById('moexUsername').value.trim();
+            const password = document.getElementById('moexPassword').value.trim();
+            const from = document.getElementById('fromDate').value;
+            const till = document.getElementById('tillDate').value;
+
+            if (!username || !password) {
+                alert('Введите логин и пароль MOEX');
+                return;
+            }
+
+            const loader = document.getElementById('loader');
+            loader.style.display = 'inline-block';
+            document.getElementById('dataStatus').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, from, till })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Ошибка запроса');
+
+                // Преобразование данных MOEX в формат свечей
+                const candles = data.candles.data.map(c => ({
+                    time: Math.floor(new Date(c[6]).getTime() / 1000),
+                    open: c[0],
+                    high: c[2],
+                    low: c[3],
+                    close: c[1]
+                })).sort((a,b) => a.time - b.time);
+
+                window.rawData = candles; // сохраняем глобально
+
+                // Рассчёт индикаторов
+                window.sma20 = calculateSMA(candles, 20);
+                window.sma50 = calculateSMA(candles, 50);
+                window.rsi = calculateRSI(candles, 14);
+                window.macd = calculateMACD(candles, 12, 26, 9);
+
+                drawChart(candles);
+                updateIndicatorsPanel(candles);
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('analysisText').innerText = 'Данные загружены. Можно анализировать.';
+            } catch (error) {
+                document.getElementById('dataStatus').style.display = 'block';
+                document.getElementById('dataStatus').textContent = '❌ ' + error.message;
+            } finally {
+                loader.style.display = 'none';
+            }
+        });
+
+        // Анализ DeepSeek (аналогично предыдущим версиям)
+        // ...
+    </script>
+</body>
+</html>
