@@ -1,0 +1,17 @@
+{
+  "name": "Si-3.26 Quant Terminal",
+  "short_name": "SiQuant",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#131722",
+  "theme_color": "#1e222d",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2933/2933245.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
