@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 AI Terminal (Live Fix)</title>
+    <title>Si-3.26 Live Terminal (Fixed Indicators)</title>
     <style>
         :root {
             --bg-main: #131722;
@@ -37,7 +37,7 @@
         .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
         
         .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: var(--bg-panel); padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-card { background: var(--bg-panel); padding: 15px; border-radius: 6px; text-align: center; border: 1px solid var(--bg-card); }
         .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
         .stat-value { font-size: 18px; font-weight: 600; }
 
@@ -70,7 +70,7 @@
 <body>
     <div class="container">
         <h1>
-            <span>📈 Si-3.26 AI Terminal</span>
+            <span>📈 Si-3.26 Live Terminal</span>
             <span id="liveBadge" style="display:none" class="live-badge">LIVE DATA</span>
         </h1>
 
@@ -105,7 +105,6 @@
                 <button id="analyzeBtn" disabled class="btn-analyze">Получить прогноз и уровни</button>
                 
                 <div id="aiResultContainer" style="margin-top:20px; display:none;"></div>
-                <pre id="rawLog" style="display:none; font-size:10px; color:#666; margin-top:10px;"></pre>
             </div>
         </div>
     </div>
@@ -115,21 +114,51 @@
         document.getElementById('to').value = new Date().toISOString().split('T')[0];
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        let chart = null, candleSeries = null;
-        let candles = [], indicators = {};
+        let chart = null, candleSeries = null, smaLineSeries = null;
+        let candles = [], indicators = {sma: [], rsi: []};
         let updateTimer = null;
         let priceLines = []; 
 
-        // --- Indicators ---
-        const calcSMA = (d, p) => d.map((v,i,a) => i<p-1?null:a.slice(i-p+1,i+1).reduce((s,x)=>s+x.close,0)/p);
-        const calcRSI = (d, p=14) => {
-            let rsi=[], g=0, l=0;
-            for(let i=1; i<=p; i++){ let df=d[i].close-d[i-1].close; df>0?g+=df:l-=df; }
-            let ag=g/p, al=l/p;
-            for(let i=0; i<d.length; i++){
-                if(i<p){rsi.push(null);continue;}
-                if(i>p){let df=d[i].close-d[i-1].close; ag=(ag*(p-1)+(df>0?df:0))/p; al=(al*(p-1)+(df<0?-df:0))/p;}
-                rsi.push(al==0?100:100-100/(1+ag/al));
+        // --- Indicators Calculation Functions ---
+        const calcSMA = (d, period) => {
+            let sma = [];
+            for (let i = 0; i < d.length; i++) {
+                if (i < period - 1) { sma.push(null); continue; }
+                let sum = 0;
+                for (let j = i - period + 1; j <= i; j++) sum += d[j].close;
+                sma.push(sum / period);
+            }
+            return sma;
+        };
+
+        const calcRSI = (d, period = 14) => {
+            let rsi = [];
+            let gains = 0, losses = 0;
+            
+            // Начальное усреднение (Simple Moving Average для первых 'period' изменений)
+            for (let i = 1; i <= period; i++) {
+                let diff = d[i].close - d[i-1].close;
+                if (diff > 0) gains += diff; else losses -= diff;
+            }
+            
+            let avgGain = gains / period;
+            let avgLoss = losses / period;
+
+            for (let i = 0; i < d.length; i++) {
+                if (i < period) { rsi.push(null); continue; }
+                
+                // Wilder's Smoothing для последующих точек
+                if (i > period) {
+                    let diff = d[i].close - d[i-1].close;
+                    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
+                    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
+                }
+                
+                if (avgLoss === 0) rsi.push(100);
+                else {
+                    let rs = avgGain / avgLoss;
+                    rsi.push(100 - (100 / (1 + rs)));
+                }
             }
             return rsi;
         };
@@ -143,7 +172,7 @@
             el.innerText = msg;
         };
 
-        // 1. INITIAL LOAD (HISTORY)
+        // 1. INITIAL LOAD
         $('loadBtn').onclick = async () => {
             $('loadBtn').disabled = true;
             showStatus('⏳ Загрузка истории (H1)...');
@@ -154,7 +183,7 @@
                     body: JSON.stringify({
                         username: $('user').value, password: $('pass').value,
                         from: $('from').value, till: $('to').value, 
-                        interval: 60 // Загружаем часовые свечи для истории
+                        interval: 60 // История - часовые свечи
                     })
                 });
                 const data = await res.json();
@@ -168,8 +197,8 @@
                     open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
                 })).sort((a,b)=>a.time-b.time);
 
-                indicators.sma = calcSMA(candles, 20);
-                indicators.rsi = calcRSI(candles);
+                // Первичный расчет индикаторов
+                updateIndicators();
 
                 initChart();
                 updateStats();
@@ -179,7 +208,7 @@
                 $('stopBtn').style.display = 'block';
                 $('liveBadge').style.display = 'inline-block';
                 $('analyzeBtn').disabled = false;
-                showStatus('✅ График запущен. Live обновление...');
+                showStatus('✅ Запущено. Обновление каждую минуту...');
 
             } catch(e) {
                 showStatus(e.message, true);
@@ -199,9 +228,7 @@
         // 2. LIVE UPDATE ENGINE (Using 1-minute candles)
         function startLive() {
             const tick = async () => {
-                console.log("Tick: fetching 1-min candles...");
                 try {
-                    // Запрашиваем минутки за последний час
                     const now = new Date();
                     const from = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().split('T')[0];
                     
@@ -211,31 +238,31 @@
                         body: JSON.stringify({
                             username: $('user').value, password: $('pass').value,
                             from: from, till: now.toISOString().split('T')[0], 
-                            interval: 1 // ВАЖНО: Запрашиваем 1-минутные свечи
+                            interval: 1 // Запрашиваем минутки
                         })
                     });
                     const data = await res.json();
                     if (data.candles && data.candles.data.length > 0) {
                         processMinuteData(data.candles);
                     }
-                } catch(e) { console.error("Live update error", e); }
+                } catch(e) { console.error("Tick error", e); }
             };
             
-            tick(); // Сразу
-            updateTimer = setInterval(tick, 60000); // Каждую минуту
+            tick();
+            updateTimer = setInterval(tick, 60000);
         }
 
-        // 3. AGGREGATOR: Convert 1-min candles -> Current Hour Candle
+        // 3. AGGREGATOR & INDICATOR UPDATE
         function processMinuteData(candlesData) {
             const cols = candlesData.columns;
             const rows = candlesData.data;
             const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
 
-            // Определяем начало текущего часа в UTC
+            // Время начала текущего часа в UTC
             const nowUTCTs = Math.floor(Date.now() / 1000);
             const currentHourStartTs = Math.floor(nowUTCTs / 3600) * 3600;
 
-            // Парсим минутные свечи
+            // Парсинг минуток
             const minuteCandles = rows.map(r => {
                 const time = Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000);
                 return {
@@ -244,78 +271,108 @@
                 };
             });
 
-            // Фильтруем только те, что относятся к текущему часу
+            // Фильтр только текущий час
             const currentHourMinutes = minuteCandles.filter(c => c.time >= currentHourStartTs);
+            if (currentHourMinutes.length === 0) return;
 
-            if (currentHourMinutes.length === 0) return; // Торгов нет внутри часа
-
-            // Собираем часовую свечу вручную
+            // Сборка часовой свечи
             const liveHourCandle = {
                 time: currentHourStartTs,
-                open: currentHourMinutes[0].open, // Открытие первой минутки
+                open: currentHourMinutes[0].open,
                 high: Math.max(...currentHourMinutes.map(c => c.high)),
                 low: Math.min(...currentHourMinutes.map(c => c.low)),
-                close: currentHourMinutes[currentHourMinutes.length - 1].close, // Закрытие последней минутки
+                close: currentHourMinutes[currentHourMinutes.length - 1].close,
                 volume: currentHourMinutes.reduce((sum, c) => sum + c.volume, 0)
             };
 
-            // Обновляем график
             updateChartWithLiveCandle(liveHourCandle);
         }
 
         function updateChartWithLiveCandle(newCandle) {
             if (!candleSeries) return;
 
-            // Обновляем или добавляем свечу на графике
-            candleSeries.update(newCandle);
-
-            // Обновляем локальный массив (для статистики и AI)
-            // Если время совпадает с последней свечой (это один и тот же час), обновляем
-            if (candles.length > 0 && candles[candles.length-1].time === newCandle.time) {
-                candles[candles.length-1] = newCandle;
-            } 
-            // Если время новое (наступил новый час), добавляем
-            else if (newCandle.time > (candles.length > 0 ? candles[candles.length-1].time : 0)) {
-                candles.push(newCandle);
-                // Пересчет индикаторов при появлении новой свечи (опционально, для точности панели)
-                indicators.rsi = calcRSI(candles);
-                indicators.sma = calcSMA(candles);
+            // 1. Обновляем массив свечей
+            const lastIdx = candles.length - 1;
+            if (lastIdx >= 0 && candles[lastIdx].time === newCandle.time) {
+                candles[lastIdx] = newCandle; // Обновляем текущий час
+            } else if (newCandle.time > (lastIdx >= 0 ? candles[lastIdx].time : 0)) {
+                candles.push(newCandle); // Новый час
             }
 
-            updateStats(newCandle);
+            // 2. ПЕРЕСЧИТЫВАЕМ ИНДИКАТОРЫ (Ключевой момент!)
+            updateIndicators();
+
+            // 3. Обновляем график свечей
+            candleSeries.update(newCandle);
+
+            // 4. Обновляем линию SMA на графике
+            if (smaLineSeries) {
+                const smaData = [];
+                candles.forEach((c, i) => {
+                    if (indicators.sma[i] !== null) {
+                        smaData.push({ time: c.time, value: indicators.sma[i] });
+                    }
+                });
+                smaLineSeries.setData(smaData);
+            }
+
+            // 5. Обновляем статистику в панели
+            updateStats();
+        }
+
+        function updateIndicators() {
+            indicators.sma = calcSMA(candles, 20);
+            indicators.rsi = calcRSI(candles, 14);
         }
 
         function initChart() {
             if(chart) chart.remove();
+            
             chart = LightweightCharts.createChart('chart', { 
                 layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, 
                 grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, 
                 timeScale: { timeVisible: true } 
             });
-            candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350' });
+
+            // Серия свечей
+            candleSeries = chart.addCandlestickSeries({ 
+                upColor: '#26a69a', downColor: '#ef5350', 
+                borderUpColor: '#26a69a', borderDownColor: '#ef5350' 
+            });
             candleSeries.setData(candles);
+
+            // Серия SMA (Линия)
+            smaLineSeries = chart.addLineSeries({ 
+                color: '#2962ff', 
+                lineWidth: 2, 
+                title: 'SMA 20' 
+            });
+            
+            // Первичная отрисовка SMA
+            const smaData = [];
+            candles.forEach((c, i) => {
+                if (indicators.sma[i] !== null) {
+                    smaData.push({ time: c.time, value: indicators.sma[i] });
+                }
+            });
+            smaLineSeries.setData(smaData);
+
             chart.timeScale().fitContent();
             window.addEventListener('resize', () => chart.applyOptions({width: $('chart').clientWidth}));
         }
 
-        function updateStats(liveCandle) {
+        function updateStats() {
             if(!candles.length) return;
-            
-            // Берем либо последнюю полную, либо живую
-            const last = liveCandle || candles[candles.length-1];
-            const prev = candles.length > 1 ? candles[candles.length-2] : last;
-            const diff = last.close - prev.close;
+            const last = candles[candles.length-1];
             const rsiVal = indicators.rsi[indicators.rsi.length-1];
             
             $('sPrice').innerText = last.close.toFixed(2);
-            $('sPrice').style.color = diff >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-            
             $('sHigh').innerText = last.high.toFixed(2);
             $('sLow').innerText = last.low.toFixed(2);
             $('sRsi').innerText = rsiVal ? rsiVal.toFixed(1) : '--';
         }
 
-        // 4. AI ANALYSIS (Same as before)
+        // 4. AI ANALYSIS
         $('analyzeBtn').onclick = async () => {
             const key = $('aiKey').value;
             if(!key) return alert("Введите DeepSeek API Key");
@@ -327,11 +384,11 @@
             container.style.display = 'none';
 
             try {
-                // Fetch News
+                // News
                 const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
                 
-                // Prepare Data
+                // Data
                 const last = candles[candles.length-1];
                 const sma = indicators.sma;
                 const rsi = indicators.rsi;
