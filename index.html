@@ -3,89 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 Live Auto-Update</title>
+    <title>Si-3.26 AI Terminal (Live Fix)</title>
     <style>
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: #1e1f2b; color: #e0e0e0; margin: 0; padding: 20px; }
+        :root {
+            --bg-main: #131722;
+            --bg-panel: #1e222d;
+            --bg-card: #2a2e39;
+            --text-main: #d1d4dc;
+            --text-muted: #787b86;
+            --accent-green: #26a69a;
+            --accent-red: #ef5350;
+            --accent-blue: #2962ff;
+        }
+        
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        body { background: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
-        h1 { color: #b0b7ca; border-bottom: 1px solid #333; padding-bottom: 10px; display: flex; justify-content: space-between; }
-        .live-badge { background: #f44336; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; animation: blink 2s infinite; }
-        @keyframes blink { 50% { opacity: 0.7; } }
+        
+        h1 { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bg-card); padding-bottom: 15px; margin-bottom: 20px; }
+        .live-badge { background: var(--accent-red); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
-        .panel { background: #2a2c39; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        input { flex: 1; min-width: 140px; background: #1e1f2b; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
+        @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
         
-        button { background: #3a6ea5; border: none; color: white; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; }
-        button:hover { background: #4d7db8; }
-        button:disabled { background: #555; cursor: not-allowed; }
-        .btn-green { background: #2e7d32; }
-        .btn-stop { background: #c62828; }
+        .panel { background: var(--bg-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        
+        .controls-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        input { background: var(--bg-main); border: 1px solid var(--bg-card); color: var(--text-main); padding: 10px; border-radius: 6px; flex: 1; min-width: 120px; }
+        button { background: var(--accent-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: var(--bg-panel); padding: 15px; border-radius: 6px; text-align: center; }
+        .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
+        .stat-value { font-size: 18px; font-weight: 600; }
 
-        #chart { width: 100%; height: 450px; background: #2a2c39; border-radius: 8px; }
+        #chart { width: 100%; height: 500px; background: var(--bg-panel); border-radius: 8px; }
+
+        .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .signal-badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; text-transform: uppercase; font-size: 14px; }
+        .signal-long { background: rgba(38, 166, 154, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
+        .signal-short { background: rgba(239, 83, 80, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
+        .signal-neutral { background: rgba(41, 98, 255, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+
+        .levels-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; text-align: center; }
+        .level-box { padding: 10px; border-radius: 6px; background: var(--bg-card); }
+        .level-val { font-size: 18px; font-weight: bold; margin-top: 5px; }
+        .tp-color { color: var(--accent-green); }
+        .sl-color { color: var(--accent-red); }
+        .entry-color { color: var(--accent-blue); }
+
+        .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 14px; max-height: 400px; overflow-y: auto; }
         
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .card { background: #2a2c39; padding: 15px; border-radius: 6px; border-left: 4px solid #5f9ea0; }
-        .card h3 { margin: 0 0 5px 0; color: #b0b7ca; font-size: 14px; }
-        .card .val { font-size: 20px; font-weight: 600; }
-        
-        pre { background: #2a2c39; padding: 15px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; }
-        
-        .status { font-size: 13px; padding: 8px; border-radius: 4px; margin-top: 10px; display: none; }
-        .err { background: #442326; color: #f28b82; }
-        .ok { background: #234427; color: #4caf50; }
+        .loader { display: inline-block; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .status { font-size: 12px; margin-top: 5px; padding: 8px; border-radius: 4px; display: none; }
+        .status-ok { background: #234427; color: var(--accent-green); }
+        .status-err { background: #442326; color: var(--accent-red); }
     </style>
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>
-            <span>📈 Si-3.26 Live Chart</span>
-            <span id="liveBadge" style="display:none" class="live-badge">LIVE</span>
+            <span>📈 Si-3.26 AI Terminal</span>
+            <span id="liveBadge" style="display:none" class="live-badge">LIVE DATA</span>
         </h1>
 
-        <div class="panel">
-            <div class="row">
-                <input type="text" id="user" placeholder="Логин MOEX">
-                <input type="password" id="pass" placeholder="Пароль MOEX">
-            </div>
-            <div class="row">
-                <input type="date" id="from">
-                <input type="date" id="to">
-                <button id="loadBtn" style="flex: 0 0 150px;">📥 Получить котировки</button>
-                <button id="stopBtn" class="btn-stop" style="flex: 0 0 100px; display:none;">⏹ Стоп</button>
-            </div>
-            
-            <div style="border-top:1px solid #444; margin:15px 0; padding-top:15px;">
-                <div class="row">
-                    <input type="password" id="aiKey" placeholder="DeepSeek API Key">
+        <div class="stats-grid" id="statsGrid">
+            <div class="stat-card"><div class="stat-label">Цена (Live)</div><div class="stat-value" id="sPrice">--</div></div>
+            <div class="stat-card"><div class="stat-label">High (Hour)</div><div class="stat-value" id="sHigh">--</div></div>
+            <div class="stat-card"><div class="stat-label">Low (Hour)</div><div class="stat-value" id="sLow">--</div></div>
+            <div class="stat-card"><div class="stat-label">RSI(14)</div><div class="stat-value" id="sRsi">--</div></div>
+        </div>
+
+        <div class="grid-2">
+            <div>
+                <div class="panel">
+                    <div class="controls-row">
+                        <input type="text" id="user" placeholder="MOEX Login">
+                        <input type="password" id="pass" placeholder="MOEX Password">
+                    </div>
+                    <div class="controls-row">
+                        <input type="date" id="from">
+                        <input type="date" id="to">
+                        <button id="loadBtn">▶ Запустить</button>
+                        <button id="stopBtn" style="display:none; background:#c62828;">■ Стоп</button>
+                    </div>
+                    <div class="status" id="statusBox"></div>
                 </div>
-                <button id="analyzeBtn" disabled class="btn-green" style="width:100%;">🧠 Анализ (Авто-новости + Индикаторы)</button>
+                <div id="chart"></div>
             </div>
-            
-            <div id="status" class="status"></div>
+
+            <div class="panel" style="height: fit-content;">
+                <h2 style="margin-top:0; font-size:18px;">🤖 AI Аналитик</h2>
+                <input type="password" id="aiKey" placeholder="DeepSeek API Key" style="width:100%; margin-bottom:10px;">
+                <button id="analyzeBtn" disabled class="btn-analyze">Получить прогноз и уровни</button>
+                
+                <div id="aiResultContainer" style="margin-top:20px; display:none;"></div>
+                <pre id="rawLog" style="display:none; font-size:10px; color:#666; margin-top:10px;"></pre>
+            </div>
         </div>
-
-        <div class="stats" id="stats">
-            <div class="card"><h3>Режим</h3><div class="val">Ожидание</div></div>
-        </div>
-
-        <div id="chart"></div>
-
-        <pre id="out">Аналитика появится здесь...</pre>
     </div>
 
     <script>
-        // --- Даты ---
+        // --- Setup ---
         document.getElementById('to').value = new Date().toISOString().split('T')[0];
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-        let chart = null;
-        let candleSeries = null;
-        let candles = [];
+        let chart = null, candleSeries = null;
+        let candles = [], indicators = {};
         let updateTimer = null;
+        let priceLines = []; 
 
-        // --- Индикаторы ---
+        // --- Indicators ---
         const calcSMA = (d, p) => d.map((v,i,a) => i<p-1?null:a.slice(i-p+1,i+1).reduce((s,x)=>s+x.close,0)/p);
         const calcRSI = (d, p=14) => {
             let rsi=[], g=0, l=0;
@@ -99,31 +134,32 @@
             return rsi;
         };
 
-        // --- 1. ИНИЦИАЛИЗАЦИЯ И ЗАПУСК АВТООБНОВЛЕНИЯ ---
-        document.getElementById('loadBtn').onclick = async () => {
-            const btn = document.getElementById('loadBtn');
-            const stopBtn = document.getElementById('stopBtn');
-            const status = document.getElementById('status');
-            
-            status.style.display='block'; status.className='status ok'; status.innerText='⏳ Первичная загрузка истории...';
+        // --- Core Logic ---
+        const $ = id => document.getElementById(id);
+        const showStatus = (msg, isError=false) => {
+            const el = $('statusBox');
+            el.style.display = 'block';
+            el.className = 'status ' + (isError ? 'status-err' : 'status-ok');
+            el.innerText = msg;
+        };
 
+        // 1. INITIAL LOAD (HISTORY)
+        $('loadBtn').onclick = async () => {
+            $('loadBtn').disabled = true;
+            showStatus('⏳ Загрузка истории (H1)...');
             try {
-                // А. Загружаем историю (интервал 60 мин)
                 const res = await fetch('/api/proxy', {
                     method: 'POST',
                     headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({
-                        username: document.getElementById('user').value,
-                        password: document.getElementById('pass').value,
-                        from: document.getElementById('from').value,
-                        till: document.getElementById('to').value,
-                        interval: 60
+                        username: $('user').value, password: $('pass').value,
+                        from: $('from').value, till: $('to').value, 
+                        interval: 60 // Загружаем часовые свечи для истории
                     })
                 });
                 const data = await res.json();
-                if (!res.ok || data.warning) throw new Error(data.error || data.warning || "Нет данных");
+                if (!res.ok || data.warning) throw new Error(data.error || data.warning);
 
-                // Парсинг
                 const cols = data.candles.columns;
                 const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
                 
@@ -132,194 +168,257 @@
                     open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
                 })).sort((a,b)=>a.time-b.time);
 
-                drawChart();
+                indicators.sma = calcSMA(candles, 20);
+                indicators.rsi = calcRSI(candles);
+
+                initChart();
                 updateStats();
                 
-                // Б. Запускаем автообновление
-                btn.style.display = 'none';
-                stopBtn.style.display = 'block';
-                document.getElementById('liveBadge').style.display = 'inline-block';
-                document.getElementById('analyzeBtn').disabled = false;
-                status.innerText = '✅ История загружена. Автообновление каждую минуту...';
-
-                startLiveFeed();
+                startLive();
+                $('loadBtn').style.display = 'none';
+                $('stopBtn').style.display = 'block';
+                $('liveBadge').style.display = 'inline-block';
+                $('analyzeBtn').disabled = false;
+                showStatus('✅ График запущен. Live обновление...');
 
             } catch(e) {
-                status.className='status err';
-                status.innerText = '❌ Ошибка: ' + e.message;
+                showStatus(e.message, true);
+                $('loadBtn').disabled = false;
             }
         };
 
-        // Кнопка СТОП
-        document.getElementById('stopBtn').onclick = () => {
+        $('stopBtn').onclick = () => {
             clearInterval(updateTimer);
-            document.getElementById('loadBtn').style.display = 'block';
-            document.getElementById('stopBtn').style.display = 'none';
-            document.getElementById('liveBadge').style.display = 'none';
-            document.getElementById('status').innerText = '⏸ Обновление остановлено.';
+            $('stopBtn').style.display = 'none';
+            $('loadBtn').style.display = 'block';
+            $('loadBtn').disabled = false;
+            $('liveBadge').style.display = 'none';
+            showStatus('⏸ Остановлено.');
         };
 
-        // --- 2. ФУНКЦИЯ АВТООБНОВЛЕНИЯ (ЗАПУСК В 16 МИНУТ И КАЖДУЮ МИНУТУ) ---
-        function startLiveFeed() {
-            // Функция запроса актуальной свечи
+        // 2. LIVE UPDATE ENGINE (Using 1-minute candles)
+        function startLive() {
             const tick = async () => {
-                console.log("Update tick...");
+                console.log("Tick: fetching 1-min candles...");
                 try {
-                    // Берем данные за последний час (interval=60, но запрос till=now)
-                    // MOEX вернет последнюю свечу (текущего часа), которая меняется в реальном времени
+                    // Запрашиваем минутки за последний час
                     const now = new Date();
-                    const hourAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000); // -2 часа для надежности
+                    const from = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().split('T')[0];
                     
                     const res = await fetch('/api/proxy', {
                         method: 'POST',
                         headers: {'Content-Type':'application/json'},
                         body: JSON.stringify({
-                            username: document.getElementById('user').value,
-                            password: document.getElementById('pass').value,
-                            from: hourAgo.toISOString().split('T')[0], // Дата
-                            till: now.toISOString().split('T')[0],
-                            interval: 60
+                            username: $('user').value, password: $('pass').value,
+                            from: from, till: now.toISOString().split('T')[0], 
+                            interval: 1 // ВАЖНО: Запрашиваем 1-минутные свечи
                         })
                     });
                     const data = await res.json();
                     if (data.candles && data.candles.data.length > 0) {
-                        updateLastCandle(data.candles);
+                        processMinuteData(data.candles);
                     }
-                } catch (e) {
-                    console.error("Tick error", e);
-                }
+                } catch(e) { console.error("Live update error", e); }
             };
-
-            // Логика "в 16 минуту каждого часа" + каждую минуту
-            // Если нужно строго в 16-ю минуту, можно настроить таймер.
-            // Но для актуальности графика лучше обновлять каждую минуту.
             
-            // Запускаем сразу
-            tick(); 
-            
-            // Запускаем интервал раз в 60 секунд
-            updateTimer = setInterval(tick, 60000);
+            tick(); // Сразу
+            updateTimer = setInterval(tick, 60000); // Каждую минуту
         }
 
-        function updateLastCandle(candlesData) {
-            if (!candleSeries) return;
-
+        // 3. AGGREGATOR: Convert 1-min candles -> Current Hour Candle
+        function processMinuteData(candlesData) {
             const cols = candlesData.columns;
             const rows = candlesData.data;
             const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
 
-            // Берем последнюю свечу из ответа (это текущий час)
-            const lastRow = rows[rows.length - 1];
-            const lastTime = Math.floor(new Date(lastRow[idx.t].replace(' ','T')+'+03:00')/1000);
-            
-            const newCandle = {
-                time: lastTime,
-                open: +lastRow[idx.o],
-                high: +lastRow[idx.h],
-                low: +lastRow[idx.l],
-                close: +lastRow[idx.c],
-                volume: +lastRow[idx.v]
+            // Определяем начало текущего часа в UTC
+            const nowUTCTs = Math.floor(Date.now() / 1000);
+            const currentHourStartTs = Math.floor(nowUTCTs / 3600) * 3600;
+
+            // Парсим минутные свечи
+            const minuteCandles = rows.map(r => {
+                const time = Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000);
+                return {
+                    time: time,
+                    open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
+                };
+            });
+
+            // Фильтруем только те, что относятся к текущему часу
+            const currentHourMinutes = minuteCandles.filter(c => c.time >= currentHourStartTs);
+
+            if (currentHourMinutes.length === 0) return; // Торгов нет внутри часа
+
+            // Собираем часовую свечу вручную
+            const liveHourCandle = {
+                time: currentHourStartTs,
+                open: currentHourMinutes[0].open, // Открытие первой минутки
+                high: Math.max(...currentHourMinutes.map(c => c.high)),
+                low: Math.min(...currentHourMinutes.map(c => c.low)),
+                close: currentHourMinutes[currentHourMinutes.length - 1].close, // Закрытие последней минутки
+                volume: currentHourMinutes.reduce((sum, c) => sum + c.volume, 0)
             };
 
+            // Обновляем график
+            updateChartWithLiveCandle(liveHourCandle);
+        }
+
+        function updateChartWithLiveCandle(newCandle) {
+            if (!candleSeries) return;
+
             // Обновляем или добавляем свечу на графике
-            // Lightweight-Charts сам разберется: если время совпадает с последней, он обновит её
             candleSeries.update(newCandle);
 
-            // Обновляем локальный массив (для статистики)
-            if (candles.length > 0 && candles[candles.length-1].time === lastTime) {
+            // Обновляем локальный массив (для статистики и AI)
+            // Если время совпадает с последней свечой (это один и тот же час), обновляем
+            if (candles.length > 0 && candles[candles.length-1].time === newCandle.time) {
                 candles[candles.length-1] = newCandle;
-            } else if (lastTime > (candles.length > 0 ? candles[candles.length-1].time : 0)) {
+            } 
+            // Если время новое (наступил новый час), добавляем
+            else if (newCandle.time > (candles.length > 0 ? candles[candles.length-1].time : 0)) {
                 candles.push(newCandle);
+                // Пересчет индикаторов при появлении новой свечи (опционально, для точности панели)
+                indicators.rsi = calcRSI(candles);
+                indicators.sma = calcSMA(candles);
             }
 
-            updateStats();
+            updateStats(newCandle);
         }
 
-        function drawChart() {
-            const container = document.getElementById('chart');
+        function initChart() {
             if(chart) chart.remove();
-            chart = LightweightCharts.createChart(container, { layout: { backgroundColor: '#2a2c39', textColor: '#d1d4dc' }, timeScale: { timeVisible: true } });
-            candleSeries = chart.addCandlestickSeries({ upColor: '#4caf50', downColor: '#f44336', borderUpColor: '#4caf50', borderDownColor: '#f44336' });
+            chart = LightweightCharts.createChart('chart', { 
+                layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, 
+                grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, 
+                timeScale: { timeVisible: true } 
+            });
+            candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350' });
             candleSeries.setData(candles);
             chart.timeScale().fitContent();
-            window.addEventListener('resize', () => chart.applyOptions({width: container.clientWidth}));
+            window.addEventListener('resize', () => chart.applyOptions({width: $('chart').clientWidth}));
         }
 
-        function updateStats() {
+        function updateStats(liveCandle) {
             if(!candles.length) return;
-            const last = candles[candles.length-1];
+            
+            // Берем либо последнюю полную, либо живую
+            const last = liveCandle || candles[candles.length-1];
             const prev = candles.length > 1 ? candles[candles.length-2] : last;
             const diff = last.close - prev.close;
+            const rsiVal = indicators.rsi[indicators.rsi.length-1];
             
-            document.getElementById('stats').innerHTML = `
-                <div class="card"><h3>Текущая цена (Live)</h3><div class="val" style="color:${diff>=0?'#4caf50':'#f44336'}">${last.close.toFixed(2)}</div></div>
-                <div class="card"><h3>High (Текущий час)</h3><div class="val">${last.high.toFixed(2)}</div></div>
-                <div class="card"><h3>Low (Текущий час)</h3><div class="val">${last.low.toFixed(2)}</div></div>
-                <div class="card"><h3>Время</h3><div class="val">${new Date(last.time*1000).toLocaleTimeString('ru-RU')}</div></div>
-            `;
+            $('sPrice').innerText = last.close.toFixed(2);
+            $('sPrice').style.color = diff >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+            
+            $('sHigh').innerText = last.high.toFixed(2);
+            $('sLow').innerText = last.low.toFixed(2);
+            $('sRsi').innerText = rsiVal ? rsiVal.toFixed(1) : '--';
         }
 
-        // --- АНАЛИЗ DEEPSEEK ---
-        document.getElementById('analyzeBtn').onclick = async () => {
-            const key = document.getElementById('aiKey').value;
-            if(!key) return alert('Введите DeepSeek API Key');
-            if(candles.length < 20) return alert('Недостаточно данных');
+        // 4. AI ANALYSIS (Same as before)
+        $('analyzeBtn').onclick = async () => {
+            const key = $('aiKey').value;
+            if(!key) return alert("Введите DeepSeek API Key");
 
-            const btn = document.getElementById('analyzeBtn');
-            const out = document.getElementById('out');
-            const status = document.getElementById('status');
-            
-            btn.disabled = true; btn.innerText = '⏳ Получаю новости...';
-            status.innerText = '⏳ Загрузка новостей...';
+            const btn = $('analyzeBtn');
+            const container = $('aiResultContainer');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loader"></div> Анализирую...';
+            container.style.display = 'none';
 
             try {
-                // Новости
+                // Fetch News
                 const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
-                const newsText = newsData.news;
                 
-                btn.innerText = '⏳ Анализ DeepSeek...';
-                status.innerText = '⏳ Анализирую рынок...';
-
-                // Индикаторы
-                const sma = calcSMA(candles, 20);
-                const rsi = calcRSI(candles, 14);
+                // Prepare Data
                 const last = candles[candles.length-1];
+                const sma = indicators.sma;
+                const rsi = indicators.rsi;
                 
-                let csv = "Time,O,H,L,C,V,SMA,RSI\n";
-                candles.slice(-48).forEach((c,i) => {
-                    let idx = candles.length - 48 + i;
-                    if(idx < 0) return;
-                    csv += `${new Date(c.time*1000).toISOString().slice(11,16)},${c.open},${c.high},${c.low},${c.close},${c.volume},${sma[idx]?.toFixed(2)||''},${rsi[idx]?.toFixed(2)||''}\n`;
-                });
+                const systemPrompt = `Ты профессиональный трейдер. Верни анализ СТРОГО в JSON формате.
+{
+  "signal": "LONG или SHORT или NEUTRAL",
+  "entry_price": число,
+  "take_profit": число,
+  "stop_loss": число,
+  "confidence": число (0-100),
+  "summary": "Краткий вывод",
+  "technical": "Теханализ",
+  "fundamental": "Фундаментал",
+  "risks": "Риски"
+}`;
 
-                const prompt = {
-                    model: 'deepseek-chat',
-                    messages: [
-                        {role:'system', content: 'Ты профи-трейдер. Дай прогноз Si (USD/RUB) на основе теханализа (SMA, RSI) и новостей.'},
-                        {role:'user', content: `ЦЕНА: ${last.close}. НОВОСТИ:\n${newsText}\n\nДАННЫЕ (последние 48 часов):\n${csv}`}
-                    ]
-                };
+                const userPrompt = `ТИКЕР: SiH6. ЦЕНА: ${last.close}. RSI: ${rsi[rsi.length-1]?.toFixed(1)}. SMA20: ${sma[sma.length-1]?.toFixed(1)}.
+НОВОСТИ: ${newsData.news}
+Дай прогноз.`;
 
-                const aiRes = await fetch('/api/proxy', { 
-                    method:'POST', 
+                const aiRes = await fetch('/api/proxy', {
+                    method: 'POST',
                     headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${key}`},
-                    body: JSON.stringify(prompt)
+                    body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'system', content: systemPrompt}, {role: 'user', content: userPrompt}], temperature: 0.1 })
                 });
                 const aiData = await aiRes.json();
                 if(aiData.error) throw new Error(aiData.error.message);
 
-                out.innerText = aiData.choices[0].message.content;
-                status.innerText = '✅ Анализ готов.';
+                const content = aiData.choices[0].message.content;
+                let parsed;
+                try {
+                    let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                    parsed = JSON.parse(cleanContent);
+                } catch (e) {
+                    throw new Error("Неверный формат JSON от ИИ");
+                }
+
+                renderAnalysis(parsed, container);
+                drawLevels(parsed);
 
             } catch(e) {
-                out.innerText = "Ошибка: " + e.message;
-                status.className='status err';
+                container.style.display = 'block';
+                container.innerHTML = `<div style="color:var(--accent-red);">Ошибка: ${e.message}</div>`;
             } finally {
-                btn.disabled = false; 
-                btn.innerText = '🧠 Анализ (Авто-новости + Индикаторы)';
+                btn.disabled = false;
+                btn.innerText = 'Получить прогноз и уровни';
             }
         };
+
+        function renderAnalysis(data, container) {
+            const signalClass = data.signal === 'LONG' ? 'signal-long' : (data.signal === 'SHORT' ? 'signal-short' : 'signal-neutral');
+            container.innerHTML = `
+                <div class="ai-header">
+                    <h2 style="margin:0; font-size:18px;">Сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2>
+                    <div style="font-size:12px; color:var(--text-muted);">Уверенность: ${data.confidence}%</div>
+                </div>
+                <div class="levels-grid">
+                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">ВХОД</div><div class="level-val entry-color">${data.entry_price}</div></div>
+                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">TAKE PROFIT</div><div class="level-val tp-color">${data.take_profit}</div></div>
+                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">STOP LOSS</div><div class="level-val sl-color">${data.stop_loss}</div></div>
+                </div>
+                <div style="background: rgba(255,255,255,0.05); padding:10px; border-radius:6px; margin-bottom:15px;">
+                    <b>⚡ Суть:</b> ${data.summary}
+                </div>
+                <div class="analysis-content">
+                    <h3>📉 Технический анализ</h3><p>${data.technical.replace(/\n/g, '<br>')}</p>
+                    <h3>📰 Фундаментал</h3><p>${data.fundamental.replace(/\n/g, '<br>')}</p>
+                    <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
+                </div>
+            `;
+            container.style.display = 'block';
+        }
+
+        function drawLevels(data) {
+            if (!candleSeries) return;
+            priceLines.forEach(line => candleSeries.removePriceLine(line));
+            priceLines = [];
+            const createLine = (price, color, title) => {
+                if(!price) return;
+                const line = candleSeries.createPriceLine({ price: price, color: color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: title });
+                priceLines.push(line);
+            };
+            createLine(data.entry_price, '#2962ff', 'Entry');
+            createLine(data.take_profit, '#26a69a', 'TP');
+            createLine(data.stop_loss, '#ef5350', 'SL');
+        }
     </script>
 </body>
 </html>
