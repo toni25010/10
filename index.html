@@ -44,14 +44,20 @@
         .chart-wrapper { background: #1e222d; border-radius: 8px; border: 1px solid var(--border-color); padding: 10px; height: 450px; }
         #chart { width: 100%; height: 100%; }
 
-        /* NEW: News Section */
+        /* News Section */
         .news-section { margin-top: 20px; }
         .news-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
-        .news-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; transition: transform 0.2s; }
+        .news-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; transition: transform 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
         .news-card:hover { transform: translateY(-2px); border-color: var(--accent-blue); }
-        .news-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; line-height: 1.4; color: var(--text-main); }
-        .news-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); }
+        
+        /* News Link Styles */
+        .news-link { text-decoration: none; color: var(--text-main); }
+        .news-link:hover { color: var(--accent-blue); }
+        .news-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; line-height: 1.4; }
+        .news-title::after { content: '↗'; font-size: 12px; margin-left: 5px; opacity: 0.5; }
+        
+        .news-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); margin-top: 10px; }
         
         /* Impact Badges */
         .impact-badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; text-transform: uppercase; font-size: 10px; }
@@ -67,7 +73,7 @@
         @keyframes spin { to { transform: rotate(360deg); } }
         .status { font-size: 12px; margin-top: 5px; padding: 8px; border-radius: 4px; display: none; }
         
-        /* AI Specific Styles */
+        /* AI Specific */
         .signal-badge { padding: 6px 16px; border-radius: 4px; font-weight: 700; text-transform: uppercase; font-size: 14px; }
         .signal-long { background: rgba(38, 166, 154, 0.15); color: var(--accent-green); border: 1px solid rgba(38, 166, 154, 0.3); }
         .signal-short { background: rgba(239, 83, 80, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 83, 80, 0.3); }
@@ -100,7 +106,7 @@
 
         <!-- Main Content -->
         <div style="display: grid; grid-template-columns: 1fr 380px; gap: 20px;">
-            <!-- Left Column: Chart & News -->
+            <!-- Left Column -->
             <div class="main-grid">
                 
                 <!-- Chart Panel -->
@@ -117,7 +123,7 @@
                     <div class="chart-wrapper"><div id="chart"></div></div>
                 </div>
 
-                <!-- NEW: News Panel -->
+                <!-- News Panel -->
                 <div class="panel news-section">
                     <div class="news-header">
                         <h3 style="margin:0; color:var(--text-main); font-size:16px;">📰 Новости рынка</h3>
@@ -209,7 +215,7 @@
         }
         function updateStats() { if(!candles.length) return; const last = candles[candles.length-1]; const atrVal = indicators.atr[indicators.atr.length-1]; const macdVal = indicators.macd.macdLine[indicators.macd.macdLine.length-1]; $('sPrice').innerText = last.close.toFixed(2); $('sTrend').innerText = indicators.trend; $('sAtr').innerText = atrVal ? atrVal.toFixed(0) : '--'; if(macdVal) { $('sMacd').innerText = macdVal.toFixed(0); $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'; } }
 
-        // --- NEW: NEWS LOGIC ---
+        // --- NEWS LOGIC (UPDATED) ---
         $('refreshNewsBtn').onclick = loadNews;
         
         async function loadNews() {
@@ -218,27 +224,32 @@
             try {
                 const res = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const data = await res.json();
-                renderNews(data.news);
+                renderNews(data.news); // data.news is now an array of objects
             } catch(e) {
                 container.innerHTML = '<div style="color:var(--accent-red);">Ошибка загрузки</div>';
             }
         }
 
-        function renderNews(newsText) {
-            const lines = newsText.split('\n').filter(l => l.trim().length > 5);
+        function renderNews(newsItems) {
             const container = $('newsContainer');
             container.innerHTML = '';
             
-            lines.forEach(line => {
-                const cleanText = line.replace(/^- /, '');
-                const impact = calculateImpact(cleanText);
+            if(!newsItems || newsItems.length === 0) {
+                container.innerHTML = '<div style="color:var(--text-muted);">Нет новостей</div>';
+                return;
+            }
+
+            newsItems.forEach(item => {
+                const impact = calculateImpact(item.title);
                 
                 const card = document.createElement('div');
                 card.className = 'news-card';
                 card.innerHTML = `
-                    <div class="news-title">${cleanText}</div>
+                    <a href="${item.link}" target="_blank" class="news-link">
+                        <div class="news-title">${item.title}</div>
+                    </a>
                     <div class="news-meta">
-                        <span>Влияние на Si:</span>
+                        <span style="opacity:0.7">Влияние на Si:</span>
                         <span class="impact-badge ${impact.class}">${impact.text}</span>
                     </div>
                 `;
@@ -248,15 +259,12 @@
 
         function calculateImpact(text) {
             const h = text.toLowerCase();
-            // High Impact Keywords
             if(h.includes('цб') || h.includes('ставка') || h.includes('ключевая') || h.includes('санкции') || h.includes('нефт') || h.includes('geopolitic')) {
                 return { text: 'Высокое', class: 'impact-high' };
             }
-            // Medium Impact
             if(h.includes('рубл') || h.includes('доллар') || h.includes('бюджет') || h.includes('налог') || h.includes('экспорт')) {
                 return { text: 'Среднее', class: 'impact-medium' };
             }
-            // Low Impact
             return { text: 'Низкое', class: 'impact-low' };
         }
 
@@ -268,9 +276,12 @@
             try {
                 const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
+                // Combine titles for AI prompt
+                const newsText = newsData.news.map(i => i.title).join('\n');
+
                 const last = candles[candles.length-1]; const atr = indicators.atr[indicators.atr.length-1]; const rsi = indicators.rsi[indicators.rsi.length-1]; const sma = indicators.sma[indicators.sma.length-1]; const lastMacd = indicators.macd.macdLine[indicators.macd.macdLine.length-1];
                 const systemPrompt = `Ты профи трейдер. Дай прогноз (РОСТ/ПАДЕНИЕ/БОКОВИК). JSON: { "signal": "LONG/SHORT/NEUTRAL", "entry_price": число, "take_profit": число, "stop_loss": число, "prediction": { "direction": "...", "probability": число }, "summary": "...", "analysis": "...", "risks": "..." }`;
-                const userPrompt = `ЦЕНА: ${last.close}. RSI: ${rsi?.toFixed(1)}. SMA: ${sma?.toFixed(1)}. MACD: ${lastMacd?.toFixed(1)}. НОВОСТИ: ${newsData.news}`;
+                const userPrompt = `ЦЕНА: ${last.close}. RSI: ${rsi?.toFixed(1)}. SMA: ${sma?.toFixed(1)}. MACD: ${lastMacd?.toFixed(1)}. НОВОСТИ: ${newsText}`;
                 const aiRes = await fetch('/api/proxy', { method: 'POST', headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${key}`}, body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'system', content: systemPrompt}, {role: 'user', content: userPrompt}], temperature: 0.1 }) });
                 const aiData = await aiRes.json(); if(aiData.error) throw new Error(aiData.error.message);
                 const content = aiData.choices[0].message.content;
