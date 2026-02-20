@@ -3,34 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 Auto-News Analysis</title>
+    <title>Si-3.26 Auto-Analysis</title>
     <style>
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background: #1e1f2b; color: #e0e0e0; margin: 0; padding: 20px; }
         .container { max-width: 1400px; margin: 0 auto; }
         h1 { color: #b0b7ca; border-bottom: 1px solid #333; padding-bottom: 10px; }
         
-        .api-section { background: #2a2c39; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .input-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-        .api-input { flex: 1; min-width: 150px; background: #1e1f2b; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; }
+        .panel { background: #2a2c39; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        input, select { flex: 1; min-width: 140px; background: #1e1f2b; border: 1px solid #444; color: white; padding: 10px; border-radius: 6px; }
         
         button { background: #3a6ea5; border: none; color: white; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; }
         button:hover { background: #4d7db8; }
         button:disabled { background: #555; cursor: not-allowed; }
+        .btn-green { background: #2e7d32; }
+        .btn-green:hover { background: #388e3c; }
+
+        #chart { width: 100%; height: 400px; background: #2a2c39; border-radius: 8px; }
         
-        .chart-container { background: #2a2c39; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        #chart { width: 100%; height: 400px; }
-        
-        .status-msg { margin-top: 10px; font-size: 14px; padding: 10px; border-radius: 4px; display: none; }
-        .error { background: #442326; color: #f28b82; display: block; }
-        .success { background: #234427; color: #4caf50; display: block; }
-        
-        .indicators-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .indicator-card { background: #2a2c39; padding: 15px; border-radius: 6px; border-left: 4px solid #5f9ea0; }
-        .indicator-card h3 { margin: 0 0 5px 0; color: #b0b7ca; font-size: 14px; }
-        .indicator-card .value { font-size: 20px; font-weight: 600; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .card { background: #2a2c39; padding: 15px; border-radius: 6px; border-left: 4px solid #5f9ea0; }
+        .card h3 { margin: 0 0 5px 0; color: #b0b7ca; font-size: 14px; }
+        .card .val { font-size: 20px; font-weight: 600; }
         
         pre { background: #2a2c39; padding: 15px; border-radius: 6px; white-space: pre-wrap; font-family: monospace; line-height: 1.5; }
+        
+        .status { font-size: 13px; padding: 8px; border-radius: 4px; margin-top: 10px; display: none; }
+        .err { background: #442326; color: #f28b82; }
+        .ok { background: #234427; color: #4caf50; }
         
         .news-box { background: #1e1f2b; padding: 10px; border-radius: 4px; margin-top: 10px; font-size: 12px; color: #aaa; border: 1px dashed #444; }
     </style>
@@ -38,256 +39,197 @@
 </head>
 <body>
     <div class="container">
-        <h1>📈 Si-3.26 (SiH6) — Авто-анализ</h1>
+        <h1>📈 Si-3.26 (SiH6) — Технический + Фундаментальный анализ</h1>
 
-        <div class="api-section">
-            <div class="input-row">
-                <input type="text" id="moexUsername" class="api-input" placeholder="Логин MOEX (опционально)">
-                <input type="password" id="moexPassword" class="api-input" placeholder="Пароль MOEX">
+        <!-- Панель настроек -->
+        <div class="panel">
+            <div class="row">
+                <input type="text" id="user" placeholder="Логин MOEX (необязательно)">
+                <input type="password" id="pass" placeholder="Пароль MOEX">
             </div>
-            <div class="input-row">
-                <input type="date" id="fromDate" class="api-input">
-                <input type="date" id="tillDate" class="api-input">
-                <button id="loadDataBtn" style="flex: 0 0 auto;">📥 Загрузить</button>
+            <div class="row">
+                <input type="date" id="from">
+                <input type="date" id="to">
+                <button id="loadBtn">📥 Загрузить график</button>
             </div>
             
-            <div style="margin-top:15px; padding-top:15px; border-top:1px solid #444;">
-                <div class="input-row">
-                    <input type="password" id="deepseekApiKey" class="api-input" placeholder="DeepSeek API Key">
+            <div style="border-top:1px solid #444; margin:15px 0; padding-top:15px;">
+                <div class="row">
+                    <input type="password" id="aiKey" placeholder="DeepSeek API Key">
                 </div>
-                <button id="analyzeBtn" disabled style="width: 100%; background: #2e7d32;">🔍 Получить прогноз (Авто-новости + График)</button>
+                <button id="analyzeBtn" disabled class="btn-green" style="width:100%;">🧠 Сделать прогноз (Авто-новости + Индикаторы)</button>
             </div>
             
-            <div id="status" class="status-msg"></div>
-            <div id="newsBox" class="news-box" style="display:none;"><b>📰 Заголовки новостей:</b><br><span id="newsContent"></span></div>
+            <div id="status" class="status"></div>
+            <div id="newsBox" class="news-box" style="display:none;">
+                <b>📰 Автоновости (Google RSS):</b><br>
+                <span id="newsText"></span>
+            </div>
         </div>
 
-        <div class="indicators-panel" id="indicatorsPanel">
-            <div class="indicator-card"><h3>Статус</h3><div class="value">Ожидание</div></div>
+        <!-- Статистика -->
+        <div class="stats" id="stats">
+            <div class="card"><h3>Статус</h3><div class="val">Ожидание...</div></div>
         </div>
 
-        <div class="chart-container">
-            <div id="chart"></div>
-        </div>
+        <!-- График -->
+        <div id="chart"></div>
 
-        <pre id="analysisText">График и анализ появятся здесь...</pre>
+        <!-- Результат -->
+        <pre id="out">Анализ появится здесь...</pre>
     </div>
 
     <script>
-        // --- Даты ---
-        document.getElementById('tillDate').value = new Date().toISOString().split('T')[0];
-        document.getElementById('fromDate').value = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        // --- Установка дат (последние 7 дней) ---
+        document.getElementById('to').value = new Date().toISOString().split('T')[0];
+        document.getElementById('from').value = new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0];
 
-        let rawData = [];
         let chart = null;
+        let candles = [];
 
         // --- Индикаторы ---
-        function calcSMA(data, period) {
-            let sma = [];
-            for (let i = 0; i < data.length; i++) {
-                if (i < period - 1) { sma.push(null); continue; }
-                let sum = 0;
-                for (let j = i - period + 1; j <= i; j++) sum += data[j].close;
-                sma.push(sum / period);
-            }
-            return sma;
-        }
-
-        function calcRSI(data, period = 14) {
-            let rsi = [];
-            let gains = 0, losses = 0;
-            for (let i = 1; i <= period; i++) {
-                let diff = data[i].close - data[i-1].close;
-                if (diff > 0) gains += diff; else losses -= diff;
-            }
-            let avgGain = gains / period;
-            let avgLoss = losses / period;
-            
-            for (let i = 0; i < data.length; i++) {
-                if (i < period) { rsi.push(null); continue; }
-                if (i > period) {
-                    let diff = data[i].close - data[i-1].close;
-                    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
-                    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
-                }
-                let rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
-                rsi.push(100 - (100 / (1 + rs)));
+        const calcSMA = (d, p) => d.map((v,i,a) => i<p-1?null:a.slice(i-p+1,i+1).reduce((s,x)=>s+x.close,0)/p);
+        const calcRSI = (d, p=14) => {
+            let rsi=[], g=0, l=0;
+            for(let i=1; i<=p; i++){ let df=d[i].close-d[i-1].close; df>0?g+=df:l-=df; }
+            let ag=g/p, al=l/p;
+            for(let i=0; i<d.length; i++){
+                if(i<p){rsi.push(null);continue;}
+                if(i>p){let df=d[i].close-d[i-1].close; ag=(ag*(p-1)+(df>0?df:0))/p; al=(al*(p-1)+(df<0?-df:0))/p;}
+                rsi.push(al==0?100:100-100/(1+ag/al));
             }
             return rsi;
-        }
+        };
 
-        // --- Загрузка данных ---
-        document.getElementById('loadDataBtn').addEventListener('click', async () => {
-            const username = document.getElementById('moexUsername').value.trim();
-            const password = document.getElementById('moexPassword').value.trim();
-            const fromVal = document.getElementById('fromDate').value;
-            const tillVal = document.getElementById('tillDate').value;
-            const statusEl = document.getElementById('status');
-
-            statusEl.style.display = 'block'; statusEl.className = 'status-msg success'; statusEl.innerText = "⏳ Загрузка данных с биржи...";
-
+        // --- 1. Загрузка данных MOEX ---
+        document.getElementById('loadBtn').onclick = async () => {
+            const btn = document.getElementById('loadBtn');
+            const status = document.getElementById('status');
+            status.style.display='block'; status.className='status ok'; status.innerText='⏳ Загрузка данных с MOEX...';
+            
             try {
-                const response = await fetch('/api/proxy', {
+                const res = await fetch('/api/proxy', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, from: fromVal, till: tillVal })
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        username: document.getElementById('user').value,
+                        password: document.getElementById('pass').value,
+                        from: document.getElementById('from').value,
+                        till: document.getElementById('to').value
+                    })
                 });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                if (data.warning) throw new Error(data.warning);
+                if (!data.candles) throw new Error("Нет данных");
 
-                const result = await response.json();
-                if (!response.ok) throw new Error(result.error);
-                if (result.warning) throw new Error(result.warning);
-                if (!result.candles || !result.candles.data.length) throw new Error("Пустой ответ");
-
-                const cols = result.candles.columns;
-                const rows = result.candles.data;
-                const idx = {
-                    open: cols.indexOf('open'), close: cols.indexOf('close'),
-                    high: cols.indexOf('high'), low: cols.indexOf('low'),
-                    volume: cols.indexOf('volume'), begin: cols.indexOf('begin')
-                };
-
-                rawData = rows.map(r => {
-                    const timeObj = new Date(r[idx.begin].replace(' ', 'T') + '+03:00');
-                    return {
-                        time: Math.floor(timeObj.getTime() / 1000),
-                        open: parseFloat(r[idx.open]), high: parseFloat(r[idx.high]),
-                        low: parseFloat(r[idx.low]), close: parseFloat(r[idx.close]),
-                        volume: parseFloat(r[idx.volume])
-                    };
-                }).sort((a,b) => a.time - b.time);
+                // Парсинг
+                const cols = data.candles.columns;
+                const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
+                
+                candles = data.candles.data.map(r => ({
+                    time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000),
+                    open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
+                })).sort((a,b)=>a.time-b.time);
 
                 drawChart();
-                updatePanel();
-                statusEl.innerText = `✅ Загружено ${rawData.length} свечей. Готово к анализу.`;
+                updateStats();
+                
+                status.innerText = '✅ Данные загружены.';
                 document.getElementById('analyzeBtn').disabled = false;
-
-            } catch (e) {
-                statusEl.className = 'status-msg error';
-                statusEl.innerText = "❌ " + e.message;
+            } catch(e) {
+                status.className='status err';
+                status.innerText = '❌ Ошибка: ' + e.message;
             }
-        });
+        };
 
         function drawChart() {
             const container = document.getElementById('chart');
             if(chart) chart.remove();
-            chart = LightweightCharts.createChart(container, { 
-                layout: { backgroundColor: '#2a2c39', textColor: '#d1d4dc' },
-                grid: { vertLines: { color: '#404254' }, horzLines: { color: '#404254' } },
-                timeScale: { timeVisible: true }
-            });
-            const series = chart.addCandlestickSeries({
-                upColor: '#4caf50', downColor: '#f44336',
-                borderUpColor: '#4caf50', borderDownColor: '#f44336'
-            });
-            series.setData(rawData);
+            chart = LightweightCharts.createChart(container, { layout: { backgroundColor: '#2a2c39', textColor: '#d1d4dc' }, timeScale: { timeVisible: true } });
+            const series = chart.addCandlestickSeries({ upColor: '#4caf50', downColor: '#f44336', borderUpColor: '#4caf50', borderDownColor: '#f44336' });
+            series.setData(candles);
             chart.timeScale().fitContent();
+            window.addEventListener('resize', () => chart.applyOptions({width: container.clientWidth}));
         }
 
-        function updatePanel() {
-            if(!rawData.length) return;
-            const last = rawData[rawData.length-1];
-            document.getElementById('indicatorsPanel').innerHTML = `
-                <div class="indicator-card"><h3>Цена</h3><div class="value">${last.close.toFixed(2)}</div></div>
-                <div class="indicator-card"><h3>Объем</h3><div class="value">${last.volume}</div></div>
+        function updateStats() {
+            const last = candles[candles.length-1];
+            document.getElementById('stats').innerHTML = `
+                <div class="card"><h3>Цена</h3><div class="val">${last.close.toFixed(2)}</div></div>
+                <div class="card"><h3>Объем</h3><div class="val">${last.volume}</div></div>
+                <div class="card"><h3>Свечей</h3><div class="val">${candles.length}</div></div>
             `;
         }
 
-        // --- АНАЛИЗ С АВТО-НОВОСТЯМИ ---
-        document.getElementById('analyzeBtn').addEventListener('click', async () => {
-            const key = document.getElementById('deepseekApiKey').value;
-            if(!key) return alert("Введите API Key");
-            if(rawData.length === 0) return alert("Сначала загрузите данные");
+        // --- 2. Анализ (Новости + AI) ---
+        document.getElementById('analyzeBtn').onclick = async () => {
+            const key = document.getElementById('aiKey').value;
+            if(!key) return alert('Введите DeepSeek API Key');
+            if(!candles.length) return alert('Нет данных');
 
             const btn = document.getElementById('analyzeBtn');
-            const out = document.getElementById('analysisText');
-            const statusEl = document.getElementById('status');
-            const newsBox = document.getElementById('newsBox');
-            const newsContent = document.getElementById('newsContent');
+            const status = document.getElementById('status');
+            const out = document.getElementById('out');
+            const newsDiv = document.getElementById('newsBox');
             
-            btn.disabled = true;
-            btn.innerText = "⏳ Получаю новости...";
-            statusEl.style.display = 'block';
-            statusEl.className = 'status-msg success';
-            out.innerText = "Подготовка данных...";
+            btn.disabled = true; btn.innerText = '⏳ Получаю новости...';
+            status.style.display='block'; status.className='status ok'; status.innerText='⏳ Загрузка новостей...';
 
             try {
-                // Шаг 1: Получаем новости
-                statusEl.innerText = "⏳ Загрузка новостей (Google News)...";
-                const newsRes = await fetch('/api/proxy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getNews' })
-                });
+                // А. Загрузка новостей
+                const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
                 const newsText = newsData.news;
                 
-                // Показываем новости пользователю
-                newsContent.innerText = newsText;
-                newsBox.style.display = 'block';
-                statusEl.innerText = "⏳ Анализирую график и новости в DeepSeek...";
-
-                // Шаг 2: Готовим данные графика
-                const sma20 = calcSMA(rawData, 20);
-                const rsi14 = calcRSI(rawData, 14);
-                const window = rawData.slice(-48);
+                document.getElementById('newsText').innerText = newsText;
+                newsDiv.style.display = 'block';
                 
-                let csv = "Date,Open,High,Low,Close,Volume,SMA20,RSI14\n";
-                window.forEach((d, i) => {
-                    const idx = rawData.length - window.length + i;
-                    const dateStr = new Date(d.time*1000).toISOString().replace('T', ' ').substring(0, 16);
-                    const s = sma20[idx] ? sma20[idx].toFixed(2) : '';
-                    const r = rsi14[idx] ? rsi14[idx].toFixed(2) : '';
-                    csv += `${dateStr},${d.open},${d.high},${d.low},${d.close},${d.volume},${s},${r}\n`;
+                status.innerText = '⏳ Анализирую...';
+                btn.innerText = '⏳ Анализирую...';
+
+                // Б. Подготовка данных
+                const sma = calcSMA(candles, 20);
+                const rsi = calcRSI(candles, 14);
+                const last = candles[candles.length-1];
+                
+                // Берем последние 48 свечей для экономии токенов
+                const window = candles.slice(-48);
+                let csv = "Time,Open,High,Low,Close,Vol,SMA20,RSI14\n";
+                window.forEach((c,i) => {
+                    let idx = candles.length - window.length + i;
+                    csv += `${new Date(c.time*1000).toISOString().slice(0,16)},${c.open},${c.high},${c.low},${c.close},${c.volume},${sma[idx]?.toFixed(2)||''},${rsi[idx]?.toFixed(2)||''}\n`;
                 });
 
-                // Шаг 3: Отправляем в DeepSeek
-                const systemPrompt = `Ты аналитик MOEX. Проанализируй фьючерс Si (доллар/рубль).
-У тебя есть:
-1. Свечи (последние 48 часов), объемы, SMA20, RSI14.
-2. Свежие новостные заголовки.
-Учти влияние новостей на валютный рынок. Дай прогноз и точки входа/выхода.`;
+                // В. Запрос к DeepSeek
+                const prompt = {
+                    model: 'deepseek-chat',
+                    messages: [
+                        {role:'system', content: 'Ты профи-трейдер на MOEX. Дай краткий прогноз Si на основе тех. данных (SMA, RSI, Объемы) и новостей.'},
+                        {role:'user', content: `ТИКЕР: SiH6.\nЦЕНА: ${last.close}.\nНОВОСТИ:\n${newsText}\n\nДАННЫЕ (CSV):\n${csv}\n\nДай вывод и прогноз.`}
+                    ]
+                };
 
-                const userPrompt = `
-ТИКЕР: SiH6 (Si-3.26)
-ПОСЛЕДНЯЯ ЦЕНА: ${rawData[rawData.length-1].close}
-
-ДАННЫЕ ГРАФИКА (CSV):
- ${csv}
-
-СВЕЖИЕ НОВОСТИ (RSS):
- ${newsText}
-
-ЗАДАЧА:
-Проведи комплексный анализ. Как новости влияют на техническую картину? Куда пойдет цена?
-                `;
-
-                const res = await fetch('/api/proxy', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-                    body: JSON.stringify({
-                        model: 'deepseek-chat',
-                        messages: [
-                            { role: 'system', content: systemPrompt },
-                            { role: 'user', content: userPrompt }
-                        ],
-                        temperature: 0.2
-                    })
+                const aiRes = await fetch('/api/proxy', { 
+                    method:'POST', 
+                    headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${key}`},
+                    body: JSON.stringify(prompt)
                 });
-                const data = await res.json();
-                if(data.error) throw new Error(data.error.message);
-                
-                out.innerText = data.choices[0].message.content;
-                statusEl.innerText = "✅ Анализ завершен.";
+                const aiData = await aiRes.json();
+                if(aiData.error) throw new Error(aiData.error.message);
+
+                out.innerText = aiData.choices[0].message.content;
+                status.innerText = '✅ Готово.';
 
             } catch(e) {
                 out.innerText = "Ошибка: " + e.message;
-                statusEl.className = 'status-msg error';
-                statusEl.innerText = "❌ Ошибка";
+                status.className='status err';
+                status.innerText = '❌ Ошибка';
             } finally {
-                btn.disabled = false;
-                btn.innerText = "🔍 Получить прогноз (Авто-новости + График)";
+                btn.disabled = false; 
+                btn.innerText = '🧠 Сделать прогноз (Авто-новости + Индикаторы)';
             }
-        });
+        };
     </script>
 </body>
 </html>
