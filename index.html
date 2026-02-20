@@ -5,75 +5,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Si-3.26 Quant Terminal</title>
     <style>
+        /* --- Variables & Reset --- */
         :root {
             --bg-main: #131722;
             --bg-panel: #1e222d;
             --bg-card: #2a2e39;
+            --bg-hover: #363a45;
             --text-main: #d1d4dc;
             --text-muted: #787b86;
             --accent-green: #26a69a;
             --accent-red: #ef5350;
             --accent-blue: #2962ff;
+            --border-color: #363a45;
         }
         
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-        body { background: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; }
+        body { background: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; }
         .container { max-width: 1400px; margin: 0 auto; }
         
-        h1 { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bg-card); padding-bottom: 15px; margin-bottom: 20px; }
-        .live-badge { background: var(--accent-red); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; animation: pulse 2s infinite; }
+        /* --- Header --- */
+        h1 { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; font-weight: 500; }
+        .live-badge { background: var(--accent-red); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; animation: pulse 2s infinite; display: flex; align-items: center; gap: 5px; }
+        .live-badge::before { content: ''; width: 6px; height: 6px; background: white; border-radius: 50%; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
+        /* --- Layout --- */
         .grid-2 { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
         @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
         
-        .panel { background: var(--bg-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+        .panel { background: var(--bg-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--border-color); }
         
+        /* --- Controls --- */
         .controls-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
-        input { background: var(--bg-main); border: 1px solid var(--bg-card); color: var(--text-main); padding: 10px; border-radius: 6px; flex: 1; min-width: 120px; }
-        button { background: var(--accent-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
-        button:hover { opacity: 0.9; }
-        button:disabled { background: #444; cursor: not-allowed; }
+        input { background: var(--bg-main); border: 1px solid var(--border-color); color: var(--text-main); padding: 10px; border-radius: 6px; flex: 1; min-width: 120px; outline: none; transition: border-color 0.2s; }
+        input:focus { border-color: var(--accent-blue); }
+        button { background: var(--accent-blue); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        button:disabled { background: #444; cursor: not-allowed; transform: none; opacity: 0.7; }
         .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
-        
+        .btn-stop { background: #c62828; }
+
+        /* --- Stats Grid --- */
         .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: var(--bg-panel); padding: 12px; border-radius: 6px; text-align: center; border: 1px solid var(--bg-card); }
-        .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .stat-card { background: var(--bg-panel); padding: 12px; border-radius: 6px; text-align: center; border: 1px solid var(--border-color); transition: background 0.2s; }
+        .stat-card:hover { background: var(--bg-hover); }
+        .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
         .stat-value { font-size: 16px; font-weight: 600; }
 
-        #chart { width: 100%; height: 450px; background: var(--bg-panel); border-radius: 8px; }
+        #chart { width: 100%; height: 450px; background: var(--bg-panel); border-radius: 8px; border: 1px solid var(--border-color); }
 
-        /* AI Card Styles */
-        .signal-badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; text-transform: uppercase; font-size: 14px; }
-        .signal-long { background: rgba(38, 166, 154, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
-        .signal-short { background: rgba(239, 83, 80, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
-        .signal-neutral { background: rgba(41, 98, 255, 0.2); color: var(--accent-blue); border: 1px solid var(--accent-blue); }
+        /* --- AI Result Styles --- */
+        .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color); }
+        
+        .signal-badge { padding: 6px 16px; border-radius: 4px; font-weight: 700; text-transform: uppercase; font-size: 14px; letter-spacing: 0.5px; }
+        .signal-long { background: rgba(38, 166, 154, 0.15); color: var(--accent-green); border: 1px solid rgba(38, 166, 154, 0.3); }
+        .signal-short { background: rgba(239, 83, 80, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 83, 80, 0.3); }
+        .signal-neutral { background: rgba(41, 98, 255, 0.15); color: var(--accent-blue); border: 1px solid rgba(41, 98, 255, 0.3); }
 
-        .levels-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 20px; text-align: center; }
-        .level-box { padding: 10px; border-radius: 6px; background: var(--bg-card); }
-        .level-val { font-size: 18px; font-weight: bold; margin-top: 5px; }
+        .levels-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px; text-align: center; }
+        .level-box { padding: 12px; border-radius: 4px; background: var(--bg-card); border: 1px solid var(--border-color); }
+        .level-val { font-size: 20px; font-weight: 700; margin-top: 4px; font-family: monospace; }
         .tp-color { color: var(--accent-green); }
         .sl-color { color: var(--accent-red); }
         .entry-color { color: var(--accent-blue); }
 
-        /* NEW: Prediction Block */
+        /* Prediction Block */
         .prediction-block { 
-            margin-top: 20px; 
+            margin-bottom: 20px; 
             padding: 20px; 
-            background: linear-gradient(135deg, #2a2e39 0%, #24272f 100%); 
-            border-radius: 8px; 
-            border: 1px solid #333;
+            background: repeating-linear-gradient(45deg, var(--bg-card), var(--bg-card) 10px, var(--bg-panel) 10px, var(--bg-panel) 20px);
+            border-radius: 6px; 
+            border: 1px solid var(--border-color);
             text-align: center;
         }
-        .pred-title { font-size: 14px; color: var(--text-muted); margin-bottom: 10px; }
-        .pred-direction { font-size: 32px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .pred-prob-bar { height: 8px; background: #444; border-radius: 4px; overflow: hidden; margin-top: 10px; width: 100%; }
-        .pred-prob-fill { height: 100%; transition: width 0.5s; }
-        .pred-prob-text { font-size: 14px; color: var(--text-muted); margin-top: 5px; }
+        .pred-inner { background: var(--bg-panel); padding: 15px; border-radius: 4px; }
+        .pred-title { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .pred-direction { font-size: 36px; font-weight: 800; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .pred-prob-bar { height: 6px; background: #000; border-radius: 3px; overflow: hidden; margin-top: 10px; width: 100%; }
+        .pred-prob-fill { height: 100%; transition: width 0.5s ease-out; }
+        .pred-prob-text { font-size: 13px; color: var(--text-muted); margin-top: 5px; font-weight: 500; }
 
-        .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 13px; max-height: 450px; overflow-y: auto; }
-        .analysis-content h3 { color: var(--text-main); margin-top: 15px; margin-bottom: 5px; font-size: 14px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        /* Content Boxes */
+        .logic-box { background: rgba(255,255,255,0.03); padding: 15px; border-radius: 4px; margin-bottom: 20px; border-left: 3px solid var(--accent-blue); font-size: 14px; }
         
+        .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 13px; max-height: 350px; overflow-y: auto; border: 1px solid var(--border-color); }
+        .analysis-content::-webkit-scrollbar { width: 5px; }
+        .analysis-content::-webkit-scrollbar-thumb { background: #444; border-radius: 10px; }
+        
+        .analysis-content h3 { color: var(--text-main); margin: 0 0 10px 0; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .analysis-content p { margin: 0 0 15px 0; color: #b0b7ca; }
+
+        /* Loader & Status */
         .loader { display: inline-block; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .status { font-size: 12px; margin-top: 5px; padding: 8px; border-radius: 4px; display: none; }
@@ -106,7 +128,7 @@
                         <input type="date" id="from">
                         <input type="date" id="to">
                         <button id="loadBtn">▶ Запустить</button>
-                        <button id="stopBtn" style="display:none; background:#c62828;">■ Стоп</button>
+                        <button id="stopBtn" style="display:none;" class="btn-stop">■ Стоп</button>
                     </div>
                     <div class="status" id="statusBox"></div>
                 </div>
@@ -114,7 +136,7 @@
             </div>
 
             <div class="panel" style="height: fit-content;">
-                <h2 style="margin-top:0; font-size:18px;">🤖 Прогнозный модуль</h2>
+                <h2 style="margin-top:0; font-size:18px; font-weight:500;">🤖 Прогнозный модуль</h2>
                 <input type="password" id="aiKey" placeholder="DeepSeek API Key" style="width:100%; margin-bottom:10px;">
                 <button id="analyzeBtn" disabled class="btn-analyze">Сгенерировать прогноз</button>
                 
@@ -124,7 +146,7 @@
     </div>
 
     <script>
-        // --- Setup & Indicators Logic (Same as before) ---
+        // --- Logic (Unchanged) ---
         document.getElementById('to').value = new Date().toISOString().split('T')[0];
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -274,7 +296,7 @@
             if(macdVal) { $('sMacd').innerText = macdVal.toFixed(0); $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'; }
         }
 
-        // 3. ENHANCED AI ANALYSIS
+        // --- AI Analysis ---
         $('analyzeBtn').onclick = async () => {
             const key = $('aiKey').value; if(!key) return alert("Введите DeepSeek API Key");
             const btn = $('analyzeBtn'); const container = $('aiResultContainer');
@@ -325,32 +347,33 @@
 
             container.innerHTML = `
                 <div class="ai-header">
-                    <h2 style="margin:0; font-size:18px;">Сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2>
+                    <h2 style="margin:0; font-size:16px; font-weight:500;">Торговый сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2>
                 </div>
                 <div class="levels-grid">
-                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">ВХОД</div><div class="level-val entry-color">${data.entry_price}</div></div>
-                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">TAKE PROFIT</div><div class="level-val tp-color">${data.take_profit}</div></div>
-                    <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">STOP LOSS</div><div class="level-val sl-color">${data.stop_loss}</div></div>
+                    <div class="level-box"><div class="stat-label">Вход</div><div class="level-val entry-color">${data.entry_price}</div></div>
+                    <div class="level-box"><div class="stat-label">Тейк</div><div class="level-val tp-color">${data.take_profit}</div></div>
+                    <div class="level-box"><div class="stat-label">Стоп</div><div class="level-val sl-color">${data.stop_loss}</div></div>
                 </div>
                 
                 <!-- Прогноз -->
                 <div class="prediction-block">
-                    <div class="pred-title">🔮 Прогноз на ближайшие часы</div>
-                    <div class="pred-direction" style="color:${predColor}">${pred.direction}</div>
-                    <div class="pred-prob-text">Вероятность: <b>${pred.probability}%</b></div>
-                    <div class="pred-prob-bar">
-                        <div class="pred-prob-fill" style="width:${pred.probability}%; background:${predColor};"></div>
+                    <div class="pred-inner">
+                        <div class="pred-title">🔮 Прогноз на 1-4 часа</div>
+                        <div class="pred-direction" style="color:${predColor}">${pred.direction}</div>
+                        <div class="pred-prob-bar">
+                            <div class="pred-prob-fill" style="width:${pred.probability}%; background:${predColor};"></div>
+                        </div>
+                        <div class="pred-prob-text">Вероятность: <b style="color:${predColor}">${pred.probability}%</b></div>
                     </div>
                 </div>
 
-                <div style="margin-top: 20px;">
-                    <div style="background: rgba(255,255,255,0.03); padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
-                        <b>⚡ Логика:</b> ${data.summary}
-                    </div>
-                    <div class="analysis-content">
-                        <h3>📉 Технический разбор</h3><p>${data.analysis.replace(/\n/g, '<br>')}</p>
-                        <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
-                    </div>
+                <div class="logic-box">
+                    <b>⚡ Обоснование:</b> ${data.summary}
+                </div>
+
+                <div class="analysis-content">
+                    <h3>📉 Технический анализ</h3><p>${data.analysis.replace(/\n/g, '<br>')}</p>
+                    <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
                 </div>
             `;
             container.style.display = 'block';
