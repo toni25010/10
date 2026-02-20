@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 Live Terminal (Fixed Indicators)</title>
+    <title>Si-3.26 PRO Terminal</title>
     <style>
         :root {
             --bg-main: #131722;
@@ -24,7 +24,7 @@
         .live-badge { background: var(--accent-red); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
 
-        .grid-2 { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 380px; gap: 20px; }
         @media (max-width: 1000px) { .grid-2 { grid-template-columns: 1fr; } }
         
         .panel { background: var(--bg-panel); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
@@ -36,13 +36,15 @@
         button:disabled { background: #444; cursor: not-allowed; }
         .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
         
-        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-        .stat-card { background: var(--bg-panel); padding: 15px; border-radius: 6px; text-align: center; border: 1px solid var(--bg-card); }
-        .stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
-        .stat-value { font-size: 18px; font-weight: 600; }
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-card { background: var(--bg-panel); padding: 12px; border-radius: 6px; text-align: center; border: 1px solid var(--bg-card); }
+        .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
+        .stat-value { font-size: 16px; font-weight: 600; }
 
-        #chart { width: 100%; height: 500px; background: var(--bg-panel); border-radius: 8px; }
+        #chart { width: 100%; height: 450px; background: var(--bg-panel); border-radius: 8px; }
 
+        /* AI Card */
         .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
         .signal-badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; text-transform: uppercase; font-size: 14px; }
         .signal-long { background: rgba(38, 166, 154, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
@@ -56,29 +58,28 @@
         .sl-color { color: var(--accent-red); }
         .entry-color { color: var(--accent-blue); }
 
-        .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 14px; max-height: 400px; overflow-y: auto; }
+        .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 13px; max-height: 450px; overflow-y: auto; }
+        .analysis-content h3 { color: var(--text-main); margin-top: 15px; margin-bottom: 5px; font-size: 14px; border-bottom: 1px solid #333; padding-bottom: 5px; }
         
         .loader { display: inline-block; width: 20px; height: 20px; border: 2px solid #fff; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
         .status { font-size: 12px; margin-top: 5px; padding: 8px; border-radius: 4px; display: none; }
-        .status-ok { background: #234427; color: var(--accent-green); }
-        .status-err { background: #442326; color: var(--accent-red); }
     </style>
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>
-            <span>📈 Si-3.26 Live Terminal</span>
+            <span>📈 Si-3.26 Quant Terminal</span>
             <span id="liveBadge" style="display:none" class="live-badge">LIVE DATA</span>
         </h1>
 
         <div class="stats-grid" id="statsGrid">
-            <div class="stat-card"><div class="stat-label">Цена (Live)</div><div class="stat-value" id="sPrice">--</div></div>
-            <div class="stat-card"><div class="stat-label">High (Hour)</div><div class="stat-value" id="sHigh">--</div></div>
-            <div class="stat-card"><div class="stat-label">Low (Hour)</div><div class="stat-value" id="sLow">--</div></div>
-            <div class="stat-card"><div class="stat-label">RSI(14)</div><div class="stat-value" id="sRsi">--</div></div>
+            <div class="stat-card"><div class="stat-label">Цена</div><div class="stat-value" id="sPrice">--</div></div>
+            <div class="stat-card"><div class="stat-label">Тренд (1ч)</div><div class="stat-value" id="sTrend">--</div></div>
+            <div class="stat-card"><div class="stat-label">ATR (Vol)</div><div class="stat-value" id="sAtr">--</div></div>
+            <div class="stat-card"><div class="stat-label">RSI</div><div class="stat-value" id="sRsi">--</div></div>
+            <div class="stat-card"><div class="stat-label">MACD</div><div class="stat-value" id="sMacd">--</div></div>
         </div>
 
         <div class="grid-2">
@@ -100,9 +101,9 @@
             </div>
 
             <div class="panel" style="height: fit-content;">
-                <h2 style="margin-top:0; font-size:18px;">🤖 AI Аналитик</h2>
+                <h2 style="margin-top:0; font-size:18px;">🤖 Прогнозный модуль</h2>
                 <input type="password" id="aiKey" placeholder="DeepSeek API Key" style="width:100%; margin-bottom:10px;">
-                <button id="analyzeBtn" disabled class="btn-analyze">Получить прогноз и уровни</button>
+                <button id="analyzeBtn" disabled class="btn-analyze">Сгенерировать торговый сигнал</button>
                 
                 <div id="aiResultContainer" style="margin-top:20px; display:none;"></div>
             </div>
@@ -115,11 +116,13 @@
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
         let chart = null, candleSeries = null, smaLineSeries = null;
-        let candles = [], indicators = {sma: [], rsi: []};
+        let candles = [], indicators = {};
         let updateTimer = null;
         let priceLines = []; 
 
-        // --- Indicators Calculation Functions ---
+        // --- Advanced Indicator Calculations ---
+
+        // SMA
         const calcSMA = (d, period) => {
             let sma = [];
             for (let i = 0; i < d.length; i++) {
@@ -131,36 +134,134 @@
             return sma;
         };
 
+        // RSI
         const calcRSI = (d, period = 14) => {
             let rsi = [];
             let gains = 0, losses = 0;
-            
-            // Начальное усреднение (Simple Moving Average для первых 'period' изменений)
             for (let i = 1; i <= period; i++) {
                 let diff = d[i].close - d[i-1].close;
                 if (diff > 0) gains += diff; else losses -= diff;
             }
-            
             let avgGain = gains / period;
             let avgLoss = losses / period;
 
             for (let i = 0; i < d.length; i++) {
                 if (i < period) { rsi.push(null); continue; }
-                
-                // Wilder's Smoothing для последующих точек
                 if (i > period) {
                     let diff = d[i].close - d[i-1].close;
                     avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
                     avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
                 }
-                
                 if (avgLoss === 0) rsi.push(100);
-                else {
-                    let rs = avgGain / avgLoss;
-                    rsi.push(100 - (100 / (1 + rs)));
-                }
+                else rsi.push(100 - (100 / (1 + avgGain / avgLoss)));
             }
             return rsi;
+        };
+
+        // EMA (для MACD)
+        const calcEMA = (d, period) => {
+            let ema = [];
+            let k = 2 / (period + 1);
+            let sum = 0;
+            
+            // Initial SMA
+            for(let i=0; i<period; i++) sum += d[i].close;
+            ema[period-1] = sum / period;
+
+            for(let i=period; i<d.length; i++) {
+                ema[i] = d[i].close * k + ema[i-1] * (1-k);
+            }
+            return ema;
+        };
+
+        // MACD
+        const calcMACD = (d) => {
+            const ema12 = calcEMA(d, 12);
+            const ema26 = calcEMA(d, 26);
+            let macdLine = [], signalLine = [], histogram = [];
+
+            // Calculate MACD Line
+            for(let i=0; i<d.length; i++) {
+                if(ema26[i]) macdLine[i] = ema12[i] - ema26[i];
+                else macdLine[i] = null;
+            }
+
+            // Calculate Signal Line (9-period EMA of MACD)
+            // Simple approximation for signal line using SMA for first points
+            // Note: Proper EMA of MACD needs careful handling, simplified here for AI context
+            let validMacd = macdLine.filter(x => x !== null);
+            let sigEma = [];
+            let k = 2/(9+1);
+            // Start SMA
+            let sum = 0;
+            let startIdx = d.length - validMacd.length;
+            
+            // Find first valid MACD index
+            let firstValid = macdLine.findIndex(x => x !== null);
+            
+            // Fill nulls
+            for(let i=0; i<firstValid+8; i++) signalLine.push(null);
+            
+            // Start Signal calc
+            for(let i=firstValid+8; i<d.length; i++) {
+                if(i === firstValid+8) {
+                    // Simple start
+                    signalLine.push(macdLine[i]); 
+                } else {
+                    let prev = signalLine[signalLine.length-1];
+                    signalLine.push(macdLine[i] * k + prev * (1-k));
+                }
+            }
+
+            for(let i=0; i<d.length; i++) {
+                if(macdLine[i] && signalLine[i]) histogram.push(macdLine[i] - signalLine[i]);
+                else histogram.push(null);
+            }
+
+            return { macdLine, signalLine, histogram };
+        };
+
+        // ATR (Average True Range) - Volatility
+        const calcATR = (d, period = 14) => {
+            let tr = [];
+            for(let i=0; i<d.length; i++) {
+                if(i===0) { tr.push(d[i].high - d[i].low); continue; }
+                let high = d[i].high;
+                let low = d[i].low;
+                let prevClose = d[i-1].close;
+                let trueHigh = Math.max(high, prevClose);
+                let trueLow = Math.min(low, prevClose);
+                tr.push(trueHigh - trueLow);
+            }
+            
+            // SMA of TR for ATR
+            let atr = [];
+            for(let i=0; i<d.length; i++) {
+                if(i < period - 1) { atr.push(null); continue; }
+                let sum = 0;
+                for(let j=i-period+1; j<=i; j++) sum += tr[j];
+                atr.push(sum / period);
+            }
+            return atr;
+        };
+
+        // Trend Structure Analyzer
+        const analyzeTrend = (d) => {
+            if(d.length < 5) return "Н/Д";
+            const last5 = d.slice(-5);
+            const highs = last5.map(c => c.high);
+            const lows = last5.map(c => c.low);
+            
+            let hh = true, ll = true;
+            for(let i=1; i<5; i++) {
+                if(highs[i] < highs[i-1]) hh = false;
+                if(lows[i] > lows[i-1]) ll = false;
+            }
+            
+            if(hh && !ll) return "Бычий (Higher Highs)";
+            if(ll && !hh) return "Медвежий (Lower Lows)";
+            if(!hh && !ll) return "Боковик / Шум";
+            return "Смешанный";
         };
 
         // --- Core Logic ---
@@ -175,7 +276,7 @@
         // 1. INITIAL LOAD
         $('loadBtn').onclick = async () => {
             $('loadBtn').disabled = true;
-            showStatus('⏳ Загрузка истории (H1)...');
+            showStatus('⏳ Загрузка истории...');
             try {
                 const res = await fetch('/api/proxy', {
                     method: 'POST',
@@ -183,7 +284,7 @@
                     body: JSON.stringify({
                         username: $('user').value, password: $('pass').value,
                         from: $('from').value, till: $('to').value, 
-                        interval: 60 // История - часовые свечи
+                        interval: 60
                     })
                 });
                 const data = await res.json();
@@ -197,9 +298,7 @@
                     open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
                 })).sort((a,b)=>a.time-b.time);
 
-                // Первичный расчет индикаторов
                 updateIndicators();
-
                 initChart();
                 updateStats();
                 
@@ -208,7 +307,7 @@
                 $('stopBtn').style.display = 'block';
                 $('liveBadge').style.display = 'inline-block';
                 $('analyzeBtn').disabled = false;
-                showStatus('✅ Запущено. Обновление каждую минуту...');
+                showStatus('✅ Запущено.');
 
             } catch(e) {
                 showStatus(e.message, true);
@@ -222,60 +321,47 @@
             $('loadBtn').style.display = 'block';
             $('loadBtn').disabled = false;
             $('liveBadge').style.display = 'none';
-            showStatus('⏸ Остановлено.');
         };
 
-        // 2. LIVE UPDATE ENGINE (Using 1-minute candles)
+        // 2. LIVE UPDATE (1-min aggregation)
         function startLive() {
             const tick = async () => {
                 try {
                     const now = new Date();
                     const from = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().split('T')[0];
-                    
                     const res = await fetch('/api/proxy', {
                         method: 'POST',
                         headers: {'Content-Type':'application/json'},
                         body: JSON.stringify({
                             username: $('user').value, password: $('pass').value,
                             from: from, till: now.toISOString().split('T')[0], 
-                            interval: 1 // Запрашиваем минутки
+                            interval: 1
                         })
                     });
                     const data = await res.json();
-                    if (data.candles && data.candles.data.length > 0) {
-                        processMinuteData(data.candles);
-                    }
-                } catch(e) { console.error("Tick error", e); }
+                    if (data.candles && data.candles.data.length > 0) processMinuteData(data.candles);
+                } catch(e) { console.error(e); }
             };
-            
             tick();
             updateTimer = setInterval(tick, 60000);
         }
 
-        // 3. AGGREGATOR & INDICATOR UPDATE
         function processMinuteData(candlesData) {
             const cols = candlesData.columns;
             const rows = candlesData.data;
             const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
 
-            // Время начала текущего часа в UTC
             const nowUTCTs = Math.floor(Date.now() / 1000);
             const currentHourStartTs = Math.floor(nowUTCTs / 3600) * 3600;
 
-            // Парсинг минуток
-            const minuteCandles = rows.map(r => {
-                const time = Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000);
-                return {
-                    time: time,
-                    open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
-                };
-            });
+            const minuteCandles = rows.map(r => ({
+                time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000),
+                open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
+            }));
 
-            // Фильтр только текущий час
             const currentHourMinutes = minuteCandles.filter(c => c.time >= currentHourStartTs);
             if (currentHourMinutes.length === 0) return;
 
-            // Сборка часовой свечи
             const liveHourCandle = {
                 time: currentHourStartTs,
                 open: currentHourMinutes[0].open,
@@ -290,71 +376,41 @@
 
         function updateChartWithLiveCandle(newCandle) {
             if (!candleSeries) return;
-
-            // 1. Обновляем массив свечей
             const lastIdx = candles.length - 1;
             if (lastIdx >= 0 && candles[lastIdx].time === newCandle.time) {
-                candles[lastIdx] = newCandle; // Обновляем текущий час
+                candles[lastIdx] = newCandle;
             } else if (newCandle.time > (lastIdx >= 0 ? candles[lastIdx].time : 0)) {
-                candles.push(newCandle); // Новый час
+                candles.push(newCandle);
             }
 
-            // 2. ПЕРЕСЧИТЫВАЕМ ИНДИКАТОРЫ (Ключевой момент!)
             updateIndicators();
 
-            // 3. Обновляем график свечей
             candleSeries.update(newCandle);
 
-            // 4. Обновляем линию SMA на графике
             if (smaLineSeries) {
-                const smaData = [];
-                candles.forEach((c, i) => {
-                    if (indicators.sma[i] !== null) {
-                        smaData.push({ time: c.time, value: indicators.sma[i] });
-                    }
-                });
+                const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean);
                 smaLineSeries.setData(smaData);
             }
 
-            // 5. Обновляем статистику в панели
             updateStats();
         }
 
         function updateIndicators() {
             indicators.sma = calcSMA(candles, 20);
             indicators.rsi = calcRSI(candles, 14);
+            indicators.macd = calcMACD(candles);
+            indicators.atr = calcATR(candles, 14);
+            indicators.trend = analyzeTrend(candles);
         }
 
         function initChart() {
             if(chart) chart.remove();
-            
-            chart = LightweightCharts.createChart('chart', { 
-                layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, 
-                grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, 
-                timeScale: { timeVisible: true } 
-            });
-
-            // Серия свечей
-            candleSeries = chart.addCandlestickSeries({ 
-                upColor: '#26a69a', downColor: '#ef5350', 
-                borderUpColor: '#26a69a', borderDownColor: '#ef5350' 
-            });
+            chart = LightweightCharts.createChart('chart', { layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, timeScale: { timeVisible: true } });
+            candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350' });
             candleSeries.setData(candles);
-
-            // Серия SMA (Линия)
-            smaLineSeries = chart.addLineSeries({ 
-                color: '#2962ff', 
-                lineWidth: 2, 
-                title: 'SMA 20' 
-            });
             
-            // Первичная отрисовка SMA
-            const smaData = [];
-            candles.forEach((c, i) => {
-                if (indicators.sma[i] !== null) {
-                    smaData.push({ time: c.time, value: indicators.sma[i] });
-                }
-            });
+            smaLineSeries = chart.addLineSeries({ color: '#2962ff', lineWidth: 2, title: 'SMA 20' });
+            const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean);
             smaLineSeries.setData(smaData);
 
             chart.timeScale().fitContent();
@@ -365,14 +421,21 @@
             if(!candles.length) return;
             const last = candles[candles.length-1];
             const rsiVal = indicators.rsi[indicators.rsi.length-1];
+            const atrVal = indicators.atr[indicators.atr.length-1];
+            const macdVal = indicators.macd.histogram[indicators.macd.histogram.length-1];
             
             $('sPrice').innerText = last.close.toFixed(2);
-            $('sHigh').innerText = last.high.toFixed(2);
-            $('sLow').innerText = last.low.toFixed(2);
+            $('sTrend').innerText = indicators.trend.split(" ")[0]; // First word
+            $('sAtr').innerText = atrVal ? atrVal.toFixed(0) : '--';
             $('sRsi').innerText = rsiVal ? rsiVal.toFixed(1) : '--';
+            
+            if(macdVal) {
+                $('sMacd').innerText = macdVal.toFixed(0);
+                $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+            }
         }
 
-        // 4. AI ANALYSIS
+        // 3. ENHANCED AI ANALYSIS
         $('analyzeBtn').onclick = async () => {
             const key = $('aiKey').value;
             if(!key) return alert("Введите DeepSeek API Key");
@@ -390,25 +453,47 @@
                 
                 // Data
                 const last = candles[candles.length-1];
-                const sma = indicators.sma;
-                const rsi = indicators.rsi;
-                
-                const systemPrompt = `Ты профессиональный трейдер. Верни анализ СТРОГО в JSON формате.
+                const atr = indicators.atr[indicators.atr.length-1];
+                const rsi = indicators.rsi[indicators.rsi.length-1];
+                const sma = indicators.sma[indicators.sma.length-1];
+                const macd = indicators.macd;
+                const lastMacd = macd.histogram[macd.histogram.length-1];
+                const prevMacd = macd.histogram[macd.histogram.length-2];
+
+                // Enhanced Prompt
+                const systemPrompt = `Ты профессиональный алгоритмический трейдер. Твоя задача — найти высоковероятную точку входа на основе CONFLUENCE (совпадения факторов).
+Используй данные для обоснования:
+1. Тренд: Определи Higher Highs/Lower Lows.
+2. RSI: >70 перекуплен, <30 перепродан. Дивергенция?
+3. MACD: Гистограмма меняет цвет? Пересечение линий?
+4. ATR: Используй для расчета Стоп-Лосса (обычно 1.5 * ATR от точки входа).
+5. Объемы: Подтверждают ли они движение?
+
+Верни результат СТРОГО в JSON:
 {
-  "signal": "LONG или SHORT или NEUTRAL",
+  "signal": "LONG/SHORT/NEUTRAL",
   "entry_price": число,
   "take_profit": число,
   "stop_loss": число,
-  "confidence": число (0-100),
-  "summary": "Краткий вывод",
-  "technical": "Теханализ",
-  "fundamental": "Фундаментал",
+  "confidence": 0-100,
+  "summary": "Логика сделки (2-3 предложения)",
+  "analysis": "Детальный разбор (тренд, осцилляторы, объемы)",
   "risks": "Риски"
 }`;
 
-                const userPrompt = `ТИКЕР: SiH6. ЦЕНА: ${last.close}. RSI: ${rsi[rsi.length-1]?.toFixed(1)}. SMA20: ${sma[sma.length-1]?.toFixed(1)}.
+                const userPrompt = `
+ТИКЕР: SiH6 (Si-3.26).
+ЦЕНА: ${last.close}.
+ТРЕНД: ${indicators.trend}.
+ATR (Волатильность): ${atr ? atr.toFixed(2) : 'N/A'}.
+RSI(14): ${rsi ? rsi.toFixed(2) : 'N/A'}.
+SMA(20): ${sma ? sma.toFixed(2) : 'N/A'}.
+MACD Histogram: ${lastMacd ? lastMacd.toFixed(2) : 'N/A'} (Пред: ${prevMacd ? prevMacd.toFixed(2) : 'N/A'}).
+Объем: ${last.volume}.
 НОВОСТИ: ${newsData.news}
-Дай прогноз.`;
+
+Дай TRADE SETUP с расчетом риска.
+                `;
 
                 const aiRes = await fetch('/api/proxy', {
                     method: 'POST',
@@ -423,9 +508,7 @@
                 try {
                     let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
                     parsed = JSON.parse(cleanContent);
-                } catch (e) {
-                    throw new Error("Неверный формат JSON от ИИ");
-                }
+                } catch (e) { throw new Error("JSON Parse Error"); }
 
                 renderAnalysis(parsed, container);
                 drawLevels(parsed);
@@ -435,7 +518,7 @@
                 container.innerHTML = `<div style="color:var(--accent-red);">Ошибка: ${e.message}</div>`;
             } finally {
                 btn.disabled = false;
-                btn.innerText = 'Получить прогноз и уровни';
+                btn.innerText = 'Сгенерировать торговый сигнал';
             }
         };
 
@@ -444,19 +527,18 @@
             container.innerHTML = `
                 <div class="ai-header">
                     <h2 style="margin:0; font-size:18px;">Сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2>
-                    <div style="font-size:12px; color:var(--text-muted);">Уверенность: ${data.confidence}%</div>
+                    <div style="font-size:12px; color:var(--text-muted);">Вероятность: ${data.confidence}%</div>
                 </div>
                 <div class="levels-grid">
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">ВХОД</div><div class="level-val entry-color">${data.entry_price}</div></div>
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">TAKE PROFIT</div><div class="level-val tp-color">${data.take_profit}</div></div>
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">STOP LOSS</div><div class="level-val sl-color">${data.stop_loss}</div></div>
                 </div>
-                <div style="background: rgba(255,255,255,0.05); padding:10px; border-radius:6px; margin-bottom:15px;">
-                    <b>⚡ Суть:</b> ${data.summary}
+                <div style="background: rgba(255,255,255,0.03); padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                    <b>⚡ Логика:</b> ${data.summary}
                 </div>
                 <div class="analysis-content">
-                    <h3>📉 Технический анализ</h3><p>${data.technical.replace(/\n/g, '<br>')}</p>
-                    <h3>📰 Фундаментал</h3><p>${data.fundamental.replace(/\n/g, '<br>')}</p>
+                    <h3>📉 Технический разбор</h3><p>${data.analysis.replace(/\n/g, '<br>')}</p>
                     <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
                 </div>
             `;
