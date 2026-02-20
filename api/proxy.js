@@ -1,13 +1,11 @@
-// api/proxy.js
 export default async function handler(req, res) {
-    // Разрешаем CORS для фронтенда
+    // 1. Настройка CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+        return res.status(200).end();
     }
 
     if (req.method !== 'POST') {
@@ -15,44 +13,68 @@ export default async function handler(req, res) {
     }
 
     const { username, password, from, till } = req.body;
-    if (!username || !password || !from || !till) {
-        return res.status(400).json({ error: 'Missing username, password, from or till' });
-    }
+
+    // Если нет логина/пароля, пробуем скачать публичные данные (для активных контрактов это работает)
+    const isPublic = !username || !password;
 
     try {
-        // 1. Аутентификация на passport.moex.com (как в Python примере)
-        const authString = Buffer.from(`${username}:${password}`).toString('base64');
-        const authResponse = await fetch('https://passport.moex.com/authenticate', {
-            method: 'GET',
-            headers: {
-                'Authorization': `Basic ${authString}`
+        let cookies = '';
+
+        // 2. Аутентификация (если переданы данные)
+        if (!isPublic) {
+            console.log("Authenticating with MOEX...");
+            const authString = Buffer.from(`${username}:${password}`).toString('base64');
+            
+            // Важно: отключаем auto-redirect, чтобы перехватить куки Set-Cookie
+            const authResponse = await fetch('https://passport.moex.com/authenticate', {
+                method: 'GET',
+                headers: { 'Authorization': `Basic ${authString}` },
+                redirect: 'manual' 
+            });
+
+            // MOEX возвращает 302 Redirect при успехе, нам нужны куки из заголовка
+            const setCookieHeader = authResponse.headers.get('set-cookie');
+            
+            if (setCookieHeader) {
+                // Берем только значение куки, без атрибутов (Path, Domain и т.д.)
+                const micexCert = setCookieHeader.split(';').find(c => c.trim().startsWith('MicexPassportCert='));
+                if (micexCert) {
+                    cookies = micexCert.trim();
+                }
             }
-        });
-
-        if (!authResponse.ok) {
-            throw new Error('MOEX authentication failed');
+            
+            // Если куки не пришли, это не обязательно ошибка доступа, ноWarn
+            if (!cookies) {
+                console.log("Warning: MicexPassportCert cookie not received. Trying public access.");
+            }
         }
 
-        // Извлекаем cookie из ответа
-        const setCookie = authResponse.headers.get('set-cookie');
-        if (!setCookie || !setCookie.includes('MicexPassportCert')) {
-            throw new Error('MicexPassportCert cookie not received');
-        }
-
-        // 2. Запрос данных по Si-3.26 с полученной cookie
-        const moexUrl = `https://iss.moex.com/iss/engines/futures/markets/forts/boards/forts/securities/Si-3.26/candles.json?from=${from}&till=${till}&interval=60&iss.only=candles`;
+        // 3. Запрос данных
+        // Используем код SiH6 для Si-3.26. 
+        // Если контракт не активен, API вернет пустой массив.
+        const moexUrl = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/SiH6/candles.json?from=${from}&till=${till}&interval=60&iss.only=candles`;
         
-        const dataResponse = await fetch(moexUrl, {
-            headers: {
-                'Cookie': setCookie.split(';')[0] // берём только имя=значение
-            }
-        });
+        const headers = {};
+        if (cookies) {
+            headers['Cookie'] = cookies;
+        }
+
+        const dataResponse = await fetch(moexUrl, { headers });
 
         if (!dataResponse.ok) {
             throw new Error(`MOEX data request failed: ${dataResponse.status}`);
         }
 
         const data = await dataResponse.json();
+        
+        // Проверка на пустые данные
+        if (!data.candles || !data.candles.data || data.candles.data.length === 0) {
+             return res.status(200).json({ 
+                 ...data, 
+                 warning: "Данные не найдены. Возможные причины: контракт Si-3.26 еще не активен (торгов нет), диапазон дат неверен или требуется авторизация." 
+             });
+        }
+
         res.status(200).json(data);
 
     } catch (error) {
