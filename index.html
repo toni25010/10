@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Si-3.26 PRO Terminal</title>
+    <title>Si-3.26 Quant Terminal</title>
     <style>
         :root {
             --bg-main: #131722;
@@ -36,7 +36,6 @@
         button:disabled { background: #444; cursor: not-allowed; }
         .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
         
-        /* Stats Grid */
         .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
         .stat-card { background: var(--bg-panel); padding: 12px; border-radius: 6px; text-align: center; border: 1px solid var(--bg-card); }
         .stat-label { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; }
@@ -44,8 +43,7 @@
 
         #chart { width: 100%; height: 450px; background: var(--bg-panel); border-radius: 8px; }
 
-        /* AI Card */
-        .ai-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        /* AI Card Styles */
         .signal-badge { padding: 5px 15px; border-radius: 20px; font-weight: bold; text-transform: uppercase; font-size: 14px; }
         .signal-long { background: rgba(38, 166, 154, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
         .signal-short { background: rgba(239, 83, 80, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
@@ -57,6 +55,21 @@
         .tp-color { color: var(--accent-green); }
         .sl-color { color: var(--accent-red); }
         .entry-color { color: var(--accent-blue); }
+
+        /* NEW: Prediction Block */
+        .prediction-block { 
+            margin-top: 20px; 
+            padding: 20px; 
+            background: linear-gradient(135deg, #2a2e39 0%, #24272f 100%); 
+            border-radius: 8px; 
+            border: 1px solid #333;
+            text-align: center;
+        }
+        .pred-title { font-size: 14px; color: var(--text-muted); margin-bottom: 10px; }
+        .pred-direction { font-size: 32px; font-weight: 800; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        .pred-prob-bar { height: 8px; background: #444; border-radius: 4px; overflow: hidden; margin-top: 10px; width: 100%; }
+        .pred-prob-fill { height: 100%; transition: width 0.5s; }
+        .pred-prob-text { font-size: 14px; color: var(--text-muted); margin-top: 5px; }
 
         .analysis-content { background: var(--bg-main); padding: 15px; border-radius: 6px; line-height: 1.6; font-size: 13px; max-height: 450px; overflow-y: auto; }
         .analysis-content h3 { color: var(--text-main); margin-top: 15px; margin-bottom: 5px; font-size: 14px; border-bottom: 1px solid #333; padding-bottom: 5px; }
@@ -103,7 +116,7 @@
             <div class="panel" style="height: fit-content;">
                 <h2 style="margin-top:0; font-size:18px;">🤖 Прогнозный модуль</h2>
                 <input type="password" id="aiKey" placeholder="DeepSeek API Key" style="width:100%; margin-bottom:10px;">
-                <button id="analyzeBtn" disabled class="btn-analyze">Сгенерировать торговый сигнал</button>
+                <button id="analyzeBtn" disabled class="btn-analyze">Сгенерировать прогноз</button>
                 
                 <div id="aiResultContainer" style="margin-top:20px; display:none;"></div>
             </div>
@@ -111,7 +124,7 @@
     </div>
 
     <script>
-        // --- Setup ---
+        // --- Setup & Indicators Logic (Same as before) ---
         document.getElementById('to').value = new Date().toISOString().split('T')[0];
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
@@ -120,9 +133,6 @@
         let updateTimer = null;
         let priceLines = []; 
 
-        // --- Advanced Indicator Calculations ---
-
-        // SMA
         const calcSMA = (d, period) => {
             let sma = [];
             for (let i = 0; i < d.length; i++) {
@@ -133,341 +143,152 @@
             }
             return sma;
         };
-
-        // RSI
         const calcRSI = (d, period = 14) => {
-            let rsi = [];
-            let gains = 0, losses = 0;
-            for (let i = 1; i <= period; i++) {
-                let diff = d[i].close - d[i-1].close;
-                if (diff > 0) gains += diff; else losses -= diff;
-            }
-            let avgGain = gains / period;
-            let avgLoss = losses / period;
-
+            let rsi = []; let gains = 0, losses = 0;
+            for (let i = 1; i <= period; i++) { let diff = d[i].close - d[i-1].close; if (diff > 0) gains += diff; else losses -= diff; }
+            let avgGain = gains / period; let avgLoss = losses / period;
             for (let i = 0; i < d.length; i++) {
                 if (i < period) { rsi.push(null); continue; }
-                if (i > period) {
-                    let diff = d[i].close - d[i-1].close;
-                    avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period;
-                    avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period;
-                }
-                if (avgLoss === 0) rsi.push(100);
-                else rsi.push(100 - (100 / (1 + avgGain / avgLoss)));
+                if (i > period) { let diff = d[i].close - d[i-1].close; avgGain = (avgGain * (period - 1) + (diff > 0 ? diff : 0)) / period; avgLoss = (avgLoss * (period - 1) + (diff < 0 ? -diff : 0)) / period; }
+                if (avgLoss === 0) rsi.push(100); else rsi.push(100 - (100 / (1 + avgGain / avgLoss)));
             }
             return rsi;
         };
-
-        // EMA (для MACD)
         const calcEMA = (d, period) => {
-            let ema = [];
-            let k = 2 / (period + 1);
-            let sum = 0;
-            
-            // Initial SMA
+            let ema = []; let k = 2 / (period + 1); let sum = 0;
             for(let i=0; i<period; i++) sum += d[i].close;
             ema[period-1] = sum / period;
-
-            for(let i=period; i<d.length; i++) {
-                ema[i] = d[i].close * k + ema[i-1] * (1-k);
-            }
+            for(let i=period; i<d.length; i++) { ema[i] = d[i].close * k + ema[i-1] * (1-k); }
             return ema;
         };
-
-        // MACD
         const calcMACD = (d) => {
-            const ema12 = calcEMA(d, 12);
-            const ema26 = calcEMA(d, 26);
-            let macdLine = [], signalLine = [], histogram = [];
-
-            // Calculate MACD Line
-            for(let i=0; i<d.length; i++) {
-                if(ema26[i]) macdLine[i] = ema12[i] - ema26[i];
-                else macdLine[i] = null;
-            }
-
-            // Calculate Signal Line (9-period EMA of MACD)
-            // Simple approximation for signal line using SMA for first points
-            // Note: Proper EMA of MACD needs careful handling, simplified here for AI context
-            let validMacd = macdLine.filter(x => x !== null);
-            let sigEma = [];
-            let k = 2/(9+1);
-            // Start SMA
-            let sum = 0;
-            let startIdx = d.length - validMacd.length;
-            
-            // Find first valid MACD index
+            const ema12 = calcEMA(d, 12); const ema26 = calcEMA(d, 26);
+            let macdLine = [], signalLine = [];
+            for(let i=0; i<d.length; i++) { if(ema26[i]) macdLine[i] = ema12[i] - ema26[i]; else macdLine[i] = null; }
             let firstValid = macdLine.findIndex(x => x !== null);
-            
-            // Fill nulls
             for(let i=0; i<firstValid+8; i++) signalLine.push(null);
-            
-            // Start Signal calc
             for(let i=firstValid+8; i<d.length; i++) {
-                if(i === firstValid+8) {
-                    // Simple start
-                    signalLine.push(macdLine[i]); 
-                } else {
-                    let prev = signalLine[signalLine.length-1];
-                    signalLine.push(macdLine[i] * k + prev * (1-k));
-                }
+                if(i === firstValid+8) signalLine.push(macdLine[i]);
+                else { let prev = signalLine[signalLine.length-1]; signalLine.push(macdLine[i] * (2/(9+1)) + prev * (1 - 2/(9+1))); }
             }
-
-            for(let i=0; i<d.length; i++) {
-                if(macdLine[i] && signalLine[i]) histogram.push(macdLine[i] - signalLine[i]);
-                else histogram.push(null);
-            }
-
-            return { macdLine, signalLine, histogram };
+            return { macdLine, signalLine };
         };
-
-        // ATR (Average True Range) - Volatility
         const calcATR = (d, period = 14) => {
             let tr = [];
             for(let i=0; i<d.length; i++) {
                 if(i===0) { tr.push(d[i].high - d[i].low); continue; }
-                let high = d[i].high;
-                let low = d[i].low;
-                let prevClose = d[i-1].close;
-                let trueHigh = Math.max(high, prevClose);
-                let trueLow = Math.min(low, prevClose);
+                let trueHigh = Math.max(d[i].high, d[i-1].close);
+                let trueLow = Math.min(d[i].low, d[i-1].close);
                 tr.push(trueHigh - trueLow);
             }
-            
-            // SMA of TR for ATR
             let atr = [];
             for(let i=0; i<d.length; i++) {
                 if(i < period - 1) { atr.push(null); continue; }
-                let sum = 0;
-                for(let j=i-period+1; j<=i; j++) sum += tr[j];
+                let sum = 0; for(let j=i-period+1; j<=i; j++) sum += tr[j];
                 atr.push(sum / period);
             }
             return atr;
         };
-
-        // Trend Structure Analyzer
         const analyzeTrend = (d) => {
             if(d.length < 5) return "Н/Д";
             const last5 = d.slice(-5);
-            const highs = last5.map(c => c.high);
-            const lows = last5.map(c => c.low);
-            
             let hh = true, ll = true;
-            for(let i=1; i<5; i++) {
-                if(highs[i] < highs[i-1]) hh = false;
-                if(lows[i] > lows[i-1]) ll = false;
-            }
-            
-            if(hh && !ll) return "Бычий (Higher Highs)";
-            if(ll && !hh) return "Медвежий (Lower Lows)";
-            if(!hh && !ll) return "Боковик / Шум";
-            return "Смешанный";
+            for(let i=1; i<5; i++) { if(last5[i].high < last5[i-1].high) hh = false; if(last5[i].low > last5[i-1].low) ll = false; }
+            if(hh && !ll) return "Бычий"; if(ll && !hh) return "Медвежий";
+            return "Боковик";
         };
 
         // --- Core Logic ---
         const $ = id => document.getElementById(id);
         const showStatus = (msg, isError=false) => {
-            const el = $('statusBox');
-            el.style.display = 'block';
+            const el = $('statusBox'); el.style.display = 'block';
             el.className = 'status ' + (isError ? 'status-err' : 'status-ok');
             el.innerText = msg;
         };
 
-        // 1. INITIAL LOAD
         $('loadBtn').onclick = async () => {
-            $('loadBtn').disabled = true;
-            showStatus('⏳ Загрузка истории...');
+            $('loadBtn').disabled = true; showStatus('⏳ Загрузка...');
             try {
-                const res = await fetch('/api/proxy', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({
-                        username: $('user').value, password: $('pass').value,
-                        from: $('from').value, till: $('to').value, 
-                        interval: 60
-                    })
-                });
-                const data = await res.json();
-                if (!res.ok || data.warning) throw new Error(data.error || data.warning);
-
+                const res = await fetch('/api/proxy', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: $('user').value, password: $('pass').value, from: $('from').value, till: $('to').value, interval: 60 }) });
+                const data = await res.json(); if (!res.ok || data.warning) throw new Error(data.error || data.warning);
                 const cols = data.candles.columns;
                 const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
-                
-                candles = data.candles.data.map(r => ({
-                    time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000),
-                    open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
-                })).sort((a,b)=>a.time-b.time);
-
-                updateIndicators();
-                initChart();
-                updateStats();
-                
-                startLive();
-                $('loadBtn').style.display = 'none';
-                $('stopBtn').style.display = 'block';
-                $('liveBadge').style.display = 'inline-block';
-                $('analyzeBtn').disabled = false;
+                candles = data.candles.data.map(r => ({ time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000), open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v] })).sort((a,b)=>a.time-b.time);
+                updateIndicators(); initChart(); updateStats(); startLive();
+                $('loadBtn').style.display = 'none'; $('stopBtn').style.display = 'block'; $('liveBadge').style.display = 'inline-block'; $('analyzeBtn').disabled = false;
                 showStatus('✅ Запущено.');
-
-            } catch(e) {
-                showStatus(e.message, true);
-                $('loadBtn').disabled = false;
-            }
+            } catch(e) { showStatus(e.message, true); $('loadBtn').disabled = false; }
         };
+        
+        $('stopBtn').onclick = () => { clearInterval(updateTimer); $('stopBtn').style.display = 'none'; $('loadBtn').style.display = 'block'; $('loadBtn').disabled = false; $('liveBadge').style.display = 'none'; };
 
-        $('stopBtn').onclick = () => {
-            clearInterval(updateTimer);
-            $('stopBtn').style.display = 'none';
-            $('loadBtn').style.display = 'block';
-            $('loadBtn').disabled = false;
-            $('liveBadge').style.display = 'none';
-        };
-
-        // 2. LIVE UPDATE (1-min aggregation)
         function startLive() {
             const tick = async () => {
                 try {
-                    const now = new Date();
-                    const from = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().split('T')[0];
-                    const res = await fetch('/api/proxy', {
-                        method: 'POST',
-                        headers: {'Content-Type':'application/json'},
-                        body: JSON.stringify({
-                            username: $('user').value, password: $('pass').value,
-                            from: from, till: now.toISOString().split('T')[0], 
-                            interval: 1
-                        })
-                    });
-                    const data = await res.json();
-                    if (data.candles && data.candles.data.length > 0) processMinuteData(data.candles);
+                    const now = new Date(); const from = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString().split('T')[0];
+                    const res = await fetch('/api/proxy', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: $('user').value, password: $('pass').value, from: from, till: now.toISOString().split('T')[0], interval: 1 }) });
+                    const data = await res.json(); if (data.candles && data.candles.data.length > 0) processMinuteData(data.candles);
                 } catch(e) { console.error(e); }
             };
-            tick();
-            updateTimer = setInterval(tick, 60000);
+            tick(); updateTimer = setInterval(tick, 60000);
         }
 
         function processMinuteData(candlesData) {
-            const cols = candlesData.columns;
-            const rows = candlesData.data;
+            const cols = candlesData.columns; const rows = candlesData.data;
             const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
-
-            const nowUTCTs = Math.floor(Date.now() / 1000);
-            const currentHourStartTs = Math.floor(nowUTCTs / 3600) * 3600;
-
-            const minuteCandles = rows.map(r => ({
-                time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000),
-                open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v]
-            }));
-
-            const currentHourMinutes = minuteCandles.filter(c => c.time >= currentHourStartTs);
-            if (currentHourMinutes.length === 0) return;
-
-            const liveHourCandle = {
-                time: currentHourStartTs,
-                open: currentHourMinutes[0].open,
-                high: Math.max(...currentHourMinutes.map(c => c.high)),
-                low: Math.min(...currentHourMinutes.map(c => c.low)),
-                close: currentHourMinutes[currentHourMinutes.length - 1].close,
-                volume: currentHourMinutes.reduce((sum, c) => sum + c.volume, 0)
-            };
-
+            const nowUTCTs = Math.floor(Date.now() / 1000); const currentHourStartTs = Math.floor(nowUTCTs / 3600) * 3600;
+            const minuteCandles = rows.map(r => ({ time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000), open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v] }));
+            const currentHourMinutes = minuteCandles.filter(c => c.time >= currentHourStartTs); if (currentHourMinutes.length === 0) return;
+            const liveHourCandle = { time: currentHourStartTs, open: currentHourMinutes[0].open, high: Math.max(...currentHourMinutes.map(c => c.high)), low: Math.min(...currentHourMinutes.map(c => c.low)), close: currentHourMinutes[currentHourMinutes.length - 1].close, volume: currentHourMinutes.reduce((sum, c) => sum + c.volume, 0) };
             updateChartWithLiveCandle(liveHourCandle);
         }
 
         function updateChartWithLiveCandle(newCandle) {
-            if (!candleSeries) return;
-            const lastIdx = candles.length - 1;
-            if (lastIdx >= 0 && candles[lastIdx].time === newCandle.time) {
-                candles[lastIdx] = newCandle;
-            } else if (newCandle.time > (lastIdx >= 0 ? candles[lastIdx].time : 0)) {
-                candles.push(newCandle);
-            }
-
-            updateIndicators();
-
-            candleSeries.update(newCandle);
-
-            if (smaLineSeries) {
-                const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean);
-                smaLineSeries.setData(smaData);
-            }
-
+            if (!candleSeries) return; const lastIdx = candles.length - 1;
+            if (lastIdx >= 0 && candles[lastIdx].time === newCandle.time) candles[lastIdx] = newCandle;
+            else if (newCandle.time > (lastIdx >= 0 ? candles[lastIdx].time : 0)) candles.push(newCandle);
+            updateIndicators(); candleSeries.update(newCandle);
+            if (smaLineSeries) { const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean); smaLineSeries.setData(smaData); }
             updateStats();
         }
 
-        function updateIndicators() {
-            indicators.sma = calcSMA(candles, 20);
-            indicators.rsi = calcRSI(candles, 14);
-            indicators.macd = calcMACD(candles);
-            indicators.atr = calcATR(candles, 14);
-            indicators.trend = analyzeTrend(candles);
-        }
+        function updateIndicators() { indicators.sma = calcSMA(candles, 20); indicators.rsi = calcRSI(candles, 14); indicators.macd = calcMACD(candles); indicators.atr = calcATR(candles, 14); indicators.trend = analyzeTrend(candles); }
 
         function initChart() {
             if(chart) chart.remove();
             chart = LightweightCharts.createChart('chart', { layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, timeScale: { timeVisible: true } });
             candleSeries = chart.addCandlestickSeries({ upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350' });
             candleSeries.setData(candles);
-            
-            smaLineSeries = chart.addLineSeries({ color: '#2962ff', lineWidth: 2, title: 'SMA 20' });
-            const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean);
-            smaLineSeries.setData(smaData);
-
+            smaLineSeries = chart.addLineSeries({ color: '#2962ff', lineWidth: 2 });
+            const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean); smaLineSeries.setData(smaData);
             chart.timeScale().fitContent();
             window.addEventListener('resize', () => chart.applyOptions({width: $('chart').clientWidth}));
         }
 
         function updateStats() {
-            if(!candles.length) return;
-            const last = candles[candles.length-1];
-            const rsiVal = indicators.rsi[indicators.rsi.length-1];
-            const atrVal = indicators.atr[indicators.atr.length-1];
-            const macdVal = indicators.macd.histogram[indicators.macd.histogram.length-1];
-            
-            $('sPrice').innerText = last.close.toFixed(2);
-            $('sTrend').innerText = indicators.trend.split(" ")[0]; // First word
-            $('sAtr').innerText = atrVal ? atrVal.toFixed(0) : '--';
-            $('sRsi').innerText = rsiVal ? rsiVal.toFixed(1) : '--';
-            
-            if(macdVal) {
-                $('sMacd').innerText = macdVal.toFixed(0);
-                $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)';
-            }
+            if(!candles.length) return; const last = candles[candles.length-1];
+            const rsiVal = indicators.rsi[indicators.rsi.length-1]; const atrVal = indicators.atr[indicators.atr.length-1];
+            const macdVal = indicators.macd.macdLine[indicators.macd.macdLine.length-1];
+            $('sPrice').innerText = last.close.toFixed(2); $('sTrend').innerText = indicators.trend;
+            $('sAtr').innerText = atrVal ? atrVal.toFixed(0) : '--'; $('sRsi').innerText = rsiVal ? rsiVal.toFixed(1) : '--';
+            if(macdVal) { $('sMacd').innerText = macdVal.toFixed(0); $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'; }
         }
 
         // 3. ENHANCED AI ANALYSIS
         $('analyzeBtn').onclick = async () => {
-            const key = $('aiKey').value;
-            if(!key) return alert("Введите DeepSeek API Key");
-
-            const btn = $('analyzeBtn');
-            const container = $('aiResultContainer');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="loader"></div> Анализирую...';
-            container.style.display = 'none';
-
+            const key = $('aiKey').value; if(!key) return alert("Введите DeepSeek API Key");
+            const btn = $('analyzeBtn'); const container = $('aiResultContainer');
+            btn.disabled = true; btn.innerHTML = '<div class="loader"></div> Анализирую...'; container.style.display = 'none';
             try {
-                // News
                 const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
-                
-                // Data
-                const last = candles[candles.length-1];
-                const atr = indicators.atr[indicators.atr.length-1];
-                const rsi = indicators.rsi[indicators.rsi.length-1];
-                const sma = indicators.sma[indicators.sma.length-1];
-                const macd = indicators.macd;
-                const lastMacd = macd.histogram[macd.histogram.length-1];
-                const prevMacd = macd.histogram[macd.histogram.length-2];
+                const last = candles[candles.length-1]; const atr = indicators.atr[indicators.atr.length-1]; const rsi = indicators.rsi[indicators.rsi.length-1]; const sma = indicators.sma[indicators.sma.length-1];
+                const macd = indicators.macd; const lastMacd = macd.macdLine[macd.macdLine.length-1]; const prevMacd = macd.macdLine[macd.macdLine.length-2];
 
-                // Enhanced Prompt
-                const systemPrompt = `Ты профессиональный алгоритмический трейдер. Твоя задача — найти высоковероятную точку входа на основе CONFLUENCE (совпадения факторов).
-Используй данные для обоснования:
-1. Тренд: Определи Higher Highs/Lower Lows.
-2. RSI: >70 перекуплен, <30 перепродан. Дивергенция?
-3. MACD: Гистограмма меняет цвет? Пересечение линий?
-4. ATR: Используй для расчета Стоп-Лосса (обычно 1.5 * ATR от точки входа).
-5. Объемы: Подтверждают ли они движение?
+                const systemPrompt = `Ты алгоритмический трейдер. Твоя задача — дать прогноз.
+1. Проанализируй техническую ситуацию.
+2. Дай прогноз движения цены на ближайшие 1-4 часа (РОСТ, ПАДЕНИЕ или БОКОВИК).
+3. Оцени вероятность своего прогноза в процентах.
 
 Верни результат СТРОГО в JSON:
 {
@@ -475,88 +296,70 @@
   "entry_price": число,
   "take_profit": число,
   "stop_loss": число,
-  "confidence": 0-100,
-  "summary": "Логика сделки (2-3 предложения)",
-  "analysis": "Детальный разбор (тренд, осцилляторы, объемы)",
+  "prediction": { "direction": "РОСТ/ПАДЕНИЕ/БОКОВИК", "probability": число },
+  "summary": "Краткая логика",
+  "analysis": "Технический разбор",
   "risks": "Риски"
 }`;
 
-                const userPrompt = `
-ТИКЕР: SiH6 (Si-3.26).
-ЦЕНА: ${last.close}.
-ТРЕНД: ${indicators.trend}.
-ATR (Волатильность): ${atr ? atr.toFixed(2) : 'N/A'}.
-RSI(14): ${rsi ? rsi.toFixed(2) : 'N/A'}.
-SMA(20): ${sma ? sma.toFixed(2) : 'N/A'}.
-MACD Histogram: ${lastMacd ? lastMacd.toFixed(2) : 'N/A'} (Пред: ${prevMacd ? prevMacd.toFixed(2) : 'N/A'}).
-Объем: ${last.volume}.
-НОВОСТИ: ${newsData.news}
+                const userPrompt = `ТИКЕР: SiH6. ЦЕНА: ${last.close}. ТРЕНД: ${indicators.trend}. ATR: ${atr ? atr.toFixed(2) : 'N/A'}. RSI: ${rsi ? rsi.toFixed(2) : 'N/A'}. SMA(20): ${sma ? sma.toFixed(2) : 'N/A'}. MACD Line: ${lastMacd ? lastMacd.toFixed(2) : 'N/A'}. Объем: ${last.volume}. НОВОСТИ: ${newsData.news}`;
 
-Дай TRADE SETUP с расчетом риска.
-                `;
-
-                const aiRes = await fetch('/api/proxy', {
-                    method: 'POST',
-                    headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${key}`},
-                    body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'system', content: systemPrompt}, {role: 'user', content: userPrompt}], temperature: 0.1 })
-                });
-                const aiData = await aiRes.json();
-                if(aiData.error) throw new Error(aiData.error.message);
-
+                const aiRes = await fetch('/api/proxy', { method: 'POST', headers: {'Content-Type':'application/json', 'Authorization': `Bearer ${key}`}, body: JSON.stringify({ model: 'deepseek-chat', messages: [{role: 'system', content: systemPrompt}, {role: 'user', content: userPrompt}], temperature: 0.1 }) });
+                const aiData = await aiRes.json(); if(aiData.error) throw new Error(aiData.error.message);
                 const content = aiData.choices[0].message.content;
                 let parsed;
-                try {
-                    let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-                    parsed = JSON.parse(cleanContent);
-                } catch (e) { throw new Error("JSON Parse Error"); }
-
-                renderAnalysis(parsed, container);
-                drawLevels(parsed);
-
-            } catch(e) {
-                container.style.display = 'block';
-                container.innerHTML = `<div style="color:var(--accent-red);">Ошибка: ${e.message}</div>`;
-            } finally {
-                btn.disabled = false;
-                btn.innerText = 'Сгенерировать торговый сигнал';
-            }
+                try { let cleanContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim(); parsed = JSON.parse(cleanContent); } catch (e) { throw new Error("JSON Parse Error"); }
+                renderAnalysis(parsed, container); drawLevels(parsed);
+            } catch(e) { container.style.display = 'block'; container.innerHTML = `<div style="color:var(--accent-red);">Ошибка: ${e.message}</div>`; }
+            finally { btn.disabled = false; btn.innerText = 'Сгенерировать прогноз'; }
         };
 
         function renderAnalysis(data, container) {
             const signalClass = data.signal === 'LONG' ? 'signal-long' : (data.signal === 'SHORT' ? 'signal-short' : 'signal-neutral');
+            
+            // Prediction Logic
+            const pred = data.prediction || { direction: 'Н/Д', probability: 0 };
+            let predColor = 'var(--accent-blue)';
+            if(pred.direction === 'РОСТ') predColor = 'var(--accent-green)';
+            if(pred.direction === 'ПАДЕНИЕ') predColor = 'var(--accent-red)';
+
             container.innerHTML = `
                 <div class="ai-header">
                     <h2 style="margin:0; font-size:18px;">Сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2>
-                    <div style="font-size:12px; color:var(--text-muted);">Вероятность: ${data.confidence}%</div>
                 </div>
                 <div class="levels-grid">
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">ВХОД</div><div class="level-val entry-color">${data.entry_price}</div></div>
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">TAKE PROFIT</div><div class="level-val tp-color">${data.take_profit}</div></div>
                     <div class="level-box"><div style="color:var(--text-muted); font-size:11px;">STOP LOSS</div><div class="level-val sl-color">${data.stop_loss}</div></div>
                 </div>
-                <div style="background: rgba(255,255,255,0.03); padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
-                    <b>⚡ Логика:</b> ${data.summary}
+                
+                <!-- Прогноз -->
+                <div class="prediction-block">
+                    <div class="pred-title">🔮 Прогноз на ближайшие часы</div>
+                    <div class="pred-direction" style="color:${predColor}">${pred.direction}</div>
+                    <div class="pred-prob-text">Вероятность: <b>${pred.probability}%</b></div>
+                    <div class="pred-prob-bar">
+                        <div class="pred-prob-fill" style="width:${pred.probability}%; background:${predColor};"></div>
+                    </div>
                 </div>
-                <div class="analysis-content">
-                    <h3>📉 Технический разбор</h3><p>${data.analysis.replace(/\n/g, '<br>')}</p>
-                    <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
+
+                <div style="margin-top: 20px;">
+                    <div style="background: rgba(255,255,255,0.03); padding:10px; border-radius:6px; margin-bottom:15px; font-size:13px;">
+                        <b>⚡ Логика:</b> ${data.summary}
+                    </div>
+                    <div class="analysis-content">
+                        <h3>📉 Технический разбор</h3><p>${data.analysis.replace(/\n/g, '<br>')}</p>
+                        <h3>⚠️ Риски</h3><p>${data.risks.replace(/\n/g, '<br>')}</p>
+                    </div>
                 </div>
             `;
             container.style.display = 'block';
         }
 
         function drawLevels(data) {
-            if (!candleSeries) return;
-            priceLines.forEach(line => candleSeries.removePriceLine(line));
-            priceLines = [];
-            const createLine = (price, color, title) => {
-                if(!price) return;
-                const line = candleSeries.createPriceLine({ price: price, color: color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: title });
-                priceLines.push(line);
-            };
-            createLine(data.entry_price, '#2962ff', 'Entry');
-            createLine(data.take_profit, '#26a69a', 'TP');
-            createLine(data.stop_loss, '#ef5350', 'SL');
+            if (!candleSeries) return; priceLines.forEach(line => candleSeries.removePriceLine(line)); priceLines = [];
+            const createLine = (price, color, title) => { if(!price) return; const line = candleSeries.createPriceLine({ price: price, color: color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: title }); priceLines.push(line); };
+            createLine(data.entry_price, '#2962ff', 'Entry'); createLine(data.take_profit, '#26a69a', 'TP'); createLine(data.stop_loss, '#ef5350', 'SL');
         }
     </script>
 </body>
