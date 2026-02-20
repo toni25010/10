@@ -12,6 +12,8 @@
             --bg-main: #131722; --bg-panel: #1e222d; --bg-card: #2a2e39; --bg-hover: #363a45;
             --text-main: #d1d4dc; --text-muted: #787b86; --accent-green: #26a69a;
             --accent-red: #ef5350; --accent-blue: #2962ff; --border-color: #363a45;
+            --color-support: #2196F3; /* Синий для поддержки */
+            --color-resist: #E91E63; /* Розовый для сопротивления */
         }
         * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
         body { background: var(--bg-main); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; }
@@ -33,6 +35,7 @@
         button:hover { opacity: 0.9; } button:disabled { background: #444; cursor: not-allowed; }
         .btn-analyze { background: linear-gradient(45deg, #2e7d32, #43a047); width: 100%; margin-top: 10px; font-size: 16px; padding: 12px; }
         .btn-stop { background: #c62828; }
+        .btn-pattern { background: #673AB7; font-size: 12px; padding: 8px 15px; }
 
         /* Stats */
         .stats-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 20px; }
@@ -41,8 +44,9 @@
         .stat-value { font-size: 16px; font-weight: 600; transition: color 0.2s; }
 
         /* Chart Area */
-        .chart-wrapper { background: #1e222d; border-radius: 8px; border: 1px solid var(--border-color); padding: 10px; height: 450px; }
+        .chart-wrapper { background: #1e222d; border-radius: 8px; border: 1px solid var(--border-color); padding: 10px; height: 450px; position: relative; }
         #chart { width: 100%; height: 100%; }
+        .pattern-badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); padding: 5px 15px; border-radius: 4px; font-size: 12px; font-weight: bold; pointer-events: none; z-index: 100; border: 1px solid var(--accent-blue); }
 
         /* News Section */
         .news-section { margin-top: 20px; }
@@ -50,13 +54,10 @@
         .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
         .news-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 15px; transition: transform 0.2s; display: flex; flex-direction: column; justify-content: space-between; }
         .news-card:hover { transform: translateY(-2px); border-color: var(--accent-blue); }
-        
-        /* News Link Styles */
         .news-link { text-decoration: none; color: var(--text-main); }
         .news-link:hover { color: var(--accent-blue); }
         .news-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; line-height: 1.4; }
         .news-title::after { content: '↗'; font-size: 12px; margin-left: 5px; opacity: 0.5; }
-        
         .news-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); margin-top: 10px; }
         
         /* Impact Badges */
@@ -118,9 +119,13 @@
                         <input type="date" id="to" style="font-size:12px;">
                         <button id="loadBtn" style="font-size:12px;">▶ Старт</button>
                         <button id="stopBtn" style="display:none; font-size:12px;" class="btn-stop">■ Стоп</button>
+                        <button id="patternBtn" class="btn-pattern" disabled>⟁ Фигуры</button>
                     </div>
                     <div class="status" id="statusBox"></div>
-                    <div class="chart-wrapper"><div id="chart"></div></div>
+                    <div class="chart-wrapper">
+                        <div id="patternBadge" class="pattern-badge" style="display:none;"></div>
+                        <div id="chart"></div>
+                    </div>
                 </div>
 
                 <!-- News Panel -->
@@ -148,6 +153,7 @@
         document.getElementById('to').value = new Date().toISOString().split('T')[0];
         document.getElementById('from').value = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         let chart = null, candleSeries = null, smaLineSeries = null, candles = [], indicators = {}, updateTimer = null, priceLines = []; 
+        let patternLines = []; // For storing drawn pattern lines
         const $ = id => document.getElementById(id);
         const showStatus = (msg, isError=false) => { const el = $('statusBox'); el.style.display = 'block'; el.className = 'status ' + (isError ? 'status-err' : 'status-ok'); el.innerText = msg; };
 
@@ -168,8 +174,10 @@
                 const cols = data.candles.columns;
                 const idx = { o: cols.indexOf('open'), c: cols.indexOf('close'), h: cols.indexOf('high'), l: cols.indexOf('low'), v: cols.indexOf('volume'), t: cols.indexOf('begin') };
                 candles = data.candles.data.map(r => ({ time: Math.floor(new Date(r[idx.t].replace(' ','T')+'+03:00')/1000), open: +r[idx.o], high: +r[idx.h], low: +r[idx.l], close: +r[idx.c], volume: +r[idx.v] })).sort((a,b)=>a.time-b.time);
+                
                 updateIndicators(); initChart(); updateStats(); startLive(); loadNews(); 
-                $('loadBtn').style.display = 'none'; $('stopBtn').style.display = 'block'; $('liveBadge').style.display = 'inline-block'; $('analyzeBtn').disabled = false;
+                $('loadBtn').style.display = 'none'; $('stopBtn').style.display = 'block'; $('liveBadge').style.display = 'inline-block';
+                $('analyzeBtn').disabled = false; $('patternBtn').disabled = false;
                 showStatus('✅ Запущено.');
             } catch(e) { showStatus(e.message, true); $('loadBtn').disabled = false; }
         };
@@ -204,6 +212,7 @@
         }
 
         function updateIndicators() { indicators.sma = calcSMA(candles, 20); indicators.rsi = calcRSI(candles, 14); indicators.macd = calcMACD(candles); indicators.atr = calcATR(candles, 14); indicators.trend = analyzeTrend(candles); }
+        
         function initChart() {
             if(chart) chart.remove();
             chart = LightweightCharts.createChart('chart', { layout: { backgroundColor: '#1e222d', textColor: '#d1d4dc' }, grid: { vertLines: { color: '#2a2e39' }, horzLines: { color: '#2a2e39' } }, timeScale: { timeVisible: true } });
@@ -213,9 +222,121 @@
             const smaData = candles.map((c, i) => indicators.sma[i] ? { time: c.time, value: indicators.sma[i] } : null).filter(Boolean); smaLineSeries.setData(smaData);
             chart.timeScale().fitContent(); window.addEventListener('resize', () => chart.applyOptions({width: $('chart').clientWidth}));
         }
+        
         function updateStats() { if(!candles.length) return; const last = candles[candles.length-1]; const atrVal = indicators.atr[indicators.atr.length-1]; const macdVal = indicators.macd.macdLine[indicators.macd.macdLine.length-1]; $('sPrice').innerText = last.close.toFixed(2); $('sTrend').innerText = indicators.trend; $('sAtr').innerText = atrVal ? atrVal.toFixed(0) : '--'; if(macdVal) { $('sMacd').innerText = macdVal.toFixed(0); $('sMacd').style.color = macdVal > 0 ? 'var(--accent-green)' : 'var(--accent-red)'; } }
 
-        // --- NEWS LOGIC (UPDATED) ---
+        // --- PATTERN DETECTION LOGIC ---
+        $('patternBtn').onclick = detectPatterns;
+
+        function detectPatterns() {
+            clearPatterns();
+            
+            // 1. Find Pivots (Highs and Lows)
+            const lookback = 5; // How far left/right to look for a pivot
+            const pivotsHigh = [];
+            const pivotsLow = [];
+
+            for(let i=lookback; i<candles.length-lookback; i++) {
+                let isHigh = true, isLow = true;
+                for(let k=1; k<=lookback; k++) {
+                    if(candles[i].high < candles[i-k].high || candles[i].high < candles[i+k].high) isHigh = false;
+                    if(candles[i].low > candles[i-k].low || candles[i].low > candles[i+k].low) isLow = false;
+                }
+                if(isHigh) pivotsHigh.push({time: candles[i].time, value: candles[i].high, index: i});
+                if(isLow) pivotsLow.push({time: candles[i].time, value: candles[i].low, index: i});
+            }
+
+            // 2. Find Horizontal Support/Resistance (Cluster pivots near price)
+            const recentHighs = pivotsHigh.slice(-10);
+            const recentLows = pivotsLow.slice(-10);
+
+            // Simple Resistance Line (Last 2 highs)
+            if(recentHighs.length >= 2) {
+                const p1 = recentHighs[recentHighs.length-2];
+                const p2 = recentHighs[recentHighs.length-1];
+                // Draw Line
+                drawTrendLine([p1, p2], 'var(--color-resist)', 'Resist');
+            }
+            
+            // Simple Support Line (Last 2 lows)
+            if(recentLows.length >= 2) {
+                const p1 = recentLows[recentLows.length-2];
+                const p2 = recentLows[recentLows.length-1];
+                drawTrendLine([p1, p2], 'var(--color-support)', 'Support');
+            }
+
+            // 3. Triangle Detection
+            // Check if the last 3 highs are descending and last 3 lows are ascending
+            let isTriangle = false;
+            if(recentHighs.length >= 3 && recentLows.length >= 3) {
+                const last3Highs = recentHighs.slice(-3);
+                const last3Lows = recentLows.slice(-3);
+
+                // Check slopes
+                const highSlopeDown = last3Highs[2].value < last3Highs[1].value && last3Highs[1].value < last3Highs[0].value;
+                const lowSlopeUp = last3Lows[2].value > last3Lows[1].value && last3Lows[1].value > last3Lows[0].value;
+
+                if(highSlopeDown && lowSlopeUp) {
+                    isTriangle = true;
+                    // Draw Triangle Lines
+                    drawTrendLine([last3Highs[0], last3Highs[2]], 'var(--color-resist)', 'Upper');
+                    drawTrendLine([last3Lows[0], last3Lows[2]], 'var(--color-support)', 'Lower');
+                    showPatternBadge("🔺 СИММЕТРИЧНЫЙ ТРЕУГОЛЬНИК (Пробой скоро)");
+                }
+            }
+            
+            if(!isTriangle) {
+                showPatternBadge("Фигуры не обнаружены");
+            }
+        }
+
+        function drawTrendLine(points, color, title) {
+            // To draw a line, we create a LineSeries
+            const lineSeries = chart.addLineSeries({
+                color: color,
+                lineWidth: 2,
+                lineStyle: 2, // Dashed
+                title: title,
+                crosshairMarkerVisible: false,
+                lastValueVisible: false,
+                priceLineVisible: false
+            });
+
+            // Extend line to the future (project forward)
+            // Simple linear extrapolation
+            const p1 = points[0];
+            const p2 = points[points.length-1];
+            
+            const timeDiff = p2.time - p1.time;
+            const valDiff = p2.value - p1.value;
+            
+            // Project 5 candles forward
+            const futureTime = p2.time + (5 * 3600); // assuming hourly
+            const futureVal = p2.value + valDiff;
+
+            lineSeries.setData([
+                { time: p1.time, value: p1.value },
+                { time: p2.time, value: p2.value },
+                { time: futureTime, value: futureVal }
+            ]);
+
+            patternLines.push(lineSeries);
+        }
+
+        function clearPatterns() {
+            patternLines.forEach(line => chart.removeSeries(line));
+            patternLines = [];
+            $('patternBadge').style.display = 'none';
+        }
+
+        function showPatternBadge(text) {
+            const badge = $('patternBadge');
+            badge.innerText = text;
+            badge.style.display = 'block';
+        }
+
+
+        // --- NEWS LOGIC ---
         $('refreshNewsBtn').onclick = loadNews;
         
         async function loadNews() {
@@ -224,7 +345,7 @@
             try {
                 const res = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const data = await res.json();
-                renderNews(data.news); // data.news is now an array of objects
+                renderNews(data.news);
             } catch(e) {
                 container.innerHTML = '<div style="color:var(--accent-red);">Ошибка загрузки</div>';
             }
@@ -241,7 +362,6 @@
 
             newsItems.forEach(item => {
                 const impact = calculateImpact(item.title);
-                
                 const card = document.createElement('div');
                 card.className = 'news-card';
                 card.innerHTML = `
@@ -259,10 +379,10 @@
 
         function calculateImpact(text) {
             const h = text.toLowerCase();
-            if(h.includes('цб') || h.includes('ставка') || h.includes('ключевая') || h.includes('санкции') || h.includes('нефт') || h.includes('geopolitic')) {
+            if(h.includes('цб') || h.includes('ставка') || h.includes('ключевая') || h.includes('санкции') || h.includes('нефт')) {
                 return { text: 'Высокое', class: 'impact-high' };
             }
-            if(h.includes('рубл') || h.includes('доллар') || h.includes('бюджет') || h.includes('налог') || h.includes('экспорт')) {
+            if(h.includes('рубл') || h.includes('доллар') || h.includes('бюджет') || h.includes('налог')) {
                 return { text: 'Среднее', class: 'impact-medium' };
             }
             return { text: 'Низкое', class: 'impact-low' };
@@ -276,7 +396,6 @@
             try {
                 const newsRes = await fetch('/api/proxy', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({action:'getNews'}) });
                 const newsData = await newsRes.json();
-                // Combine titles for AI prompt
                 const newsText = newsData.news.map(i => i.title).join('\n');
 
                 const last = candles[candles.length-1]; const atr = indicators.atr[indicators.atr.length-1]; const rsi = indicators.rsi[indicators.rsi.length-1]; const sma = indicators.sma[indicators.sma.length-1]; const lastMacd = indicators.macd.macdLine[indicators.macd.macdLine.length-1];
@@ -290,13 +409,23 @@
             } catch(e) { container.style.display = 'block'; container.innerHTML = `<div style="color:var(--accent-red);">Ошибка: ${e.message}</div>`; }
             finally { btn.disabled = false; btn.innerText = 'Сгенерировать прогноз'; }
         };
+        
         function renderAnalysis(data, container) {
             const signalClass = data.signal === 'LONG' ? 'signal-long' : (data.signal === 'SHORT' ? 'signal-short' : 'signal-neutral');
             const pred = data.prediction || { direction: 'Н/Д', probability: 0 }; let predColor = pred.direction === 'РОСТ' ? 'var(--accent-green)' : (pred.direction === 'ПАДЕНИЕ' ? 'var(--accent-red)' : 'var(--accent-blue)');
             container.innerHTML = `<div style="border-bottom:1px solid var(--border-color); margin-bottom:15px; padding-bottom:10px;"><h2 style="margin:0; font-size:16px;">Сигнал: <span class="signal-badge ${signalClass}">${data.signal}</span></h2></div><div class="levels-grid"><div class="level-box"><div class="stat-label">Вход</div><div class="level-val entry-color">${data.entry_price}</div></div><div class="level-box"><div class="stat-label">Тейк</div><div class="level-val tp-color">${data.take_profit}</div></div><div class="level-box"><div class="stat-label">Стоп</div><div class="level-val sl-color">${data.stop_loss}</div></div></div><div class="prediction-block"><div class="pred-inner"><div style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">ПРОГНОЗ</div><div class="pred-direction" style="color:${predColor}">${pred.direction}</div><div class="pred-prob-bar"><div class="pred-prob-fill" style="width:${pred.probability}%; background:${predColor};"></div></div><div style="font-size:12px; color:var(--text-muted); margin-top:5px;">Вероятность: <b style="color:${predColor}">${pred.probability}%</b></div></div></div><div class="logic-box"><b>Логика:</b> ${data.summary}</div><div class="analysis-content"><b>Тех. анализ:</b><br>${data.analysis}<br><br><b>Риски:</b><br>${data.risks}</div>`;
             container.style.display = 'block';
         }
-        function drawLevels(data) { if (!candleSeries) return; priceLines.forEach(line => candleSeries.removePriceLine(line)); priceLines = []; const createLine = (price, color, title) => { if(!price) return; priceLines.push(candleSeries.createPriceLine({ price: price, color: color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: title })); }; createLine(data.entry_price, '#2962ff', 'Entry'); createLine(data.take_profit, '#26a69a', 'TP'); createLine(data.stop_loss, '#ef5350', 'SL'); }
+
+        function drawLevels(data) { 
+            if (!candleSeries) return; 
+            priceLines.forEach(line => candleSeries.removePriceLine(line)); 
+            priceLines = []; 
+            const createLine = (price, color, title) => { if(!price) return; priceLines.push(candleSeries.createPriceLine({ price: price, color: color, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: title })); }; 
+            createLine(data.entry_price, '#2962ff', 'Entry'); 
+            createLine(data.take_profit, '#26a69a', 'TP'); 
+            createLine(data.stop_loss, '#ef5350', 'SL'); 
+        }
     </script>
 </body>
 </html>
