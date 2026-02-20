@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
     const body = req.body;
 
-    // 1. GET LAST TRADE (Realtime Price)
+    // 1. GET LAST TRADE
     if (body.action === 'getLastTrade') {
         try {
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/SiH6/trades.json?reverse=true&limit=1`;
@@ -26,23 +26,28 @@ export default async function handler(req, res) {
         }
     }
 
-    // 2. GET NEWS
+    // 2. GET NEWS (UPDATED: Returns array with title and link)
     if (body.action === 'getNews') {
         try {
             const query = encodeURIComponent('курс доллара OR нефть OR ЦБ РФ');
             const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=ru&gl=RU&ceid=RU:ru`;
             const response = await fetch(rssUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
             const text = await response.text();
-            const titles = [];
-            const regex = /<title>(.*?)<\/title>/g;
-            let match; let count = 0;
-            while ((match = regex.exec(text)) !== null && count < 10) {
-                if (count > 0) titles.push(`- ${match[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&')}`);
-                count++;
+            
+            const items = [];
+            // Regex to find <item> blocks and extract title and link
+            const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g;
+            let match;
+            
+            while ((match = itemRegex.exec(text)) !== null && items.length < 10) {
+                const title = match[1].replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+                const link = match[2];
+                items.push({ title, link });
             }
-            return res.status(200).json({ news: titles.join('\n') });
+
+            return res.status(200).json({ news: items });
         } catch (error) {
-            return res.status(200).json({ news: "Ошибка загрузки" });
+            return res.status(200).json({ news: [] });
         }
     }
 
