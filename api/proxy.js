@@ -8,38 +8,25 @@ export default async function handler(req, res) {
 
     const body = req.body;
 
-    // --- 1. ПОЛУЧЕНИЕ ПОСЛЕДНЕЙ СДЕЛКИ (REALTIME PRICE) ---
+    // 1. GET LAST TRADE (Realtime Price)
     if (body.action === 'getLastTrade') {
         try {
-            // Запрос к API сделок MOEX (одна последняя)
             const url = `https://iss.moex.com/iss/engines/futures/markets/forts/securities/SiH6/trades.json?reverse=true&limit=1`;
             const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-            const text = await response.text();
-            
-            // Парсим XML/JSON ответ MOEX
-            // MOEX отдает JSON, но иногда с кривым заголовком, поэтому надежнее парсить текст
-            const data = JSON.parse(text);
+            const data = await response.json();
             const cols = data.trades.columns;
             const row = data.trades.data[0];
-            
             if (!row) throw new Error("No trades");
-
-            const idx = {
-                price: cols.indexOf('price'),
-                time: cols.indexOf('tradetime')
-            };
-
             return res.status(200).json({ 
-                price: parseFloat(row[idx.price]), 
-                time: row[idx.time] 
+                price: parseFloat(row[cols.indexOf('price')]), 
+                time: row[cols.indexOf('tradetime')]
             });
-
         } catch (error) {
             return res.status(200).json({ price: null });
         }
     }
 
-    // --- 2. ПОЛУЧЕНИЕ НОВОСТЕЙ ---
+    // 2. GET NEWS
     if (body.action === 'getNews') {
         try {
             const query = encodeURIComponent('курс доллара OR нефть OR ЦБ РФ');
@@ -48,8 +35,7 @@ export default async function handler(req, res) {
             const text = await response.text();
             const titles = [];
             const regex = /<title>(.*?)<\/title>/g;
-            let match;
-            let count = 0;
+            let match; let count = 0;
             while ((match = regex.exec(text)) !== null && count < 10) {
                 if (count > 0) titles.push(`- ${match[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&')}`);
                 count++;
@@ -60,7 +46,7 @@ export default async function handler(req, res) {
         }
     }
 
-    // --- 3. DEEPSEEK ---
+    // 3. DEEPSEEK
     if (body.model && body.messages) {
         try {
             const response = await fetch('https://api.deepseek.com/chat/completions', {
@@ -75,7 +61,7 @@ export default async function handler(req, res) {
         }
     }
 
-    // --- 4. MOEX DATA (CANDLES) ---
+    // 4. MOEX DATA
     const { username, password, from, till, interval = 60 } = body;
     try {
         let cookieHeader = '';
